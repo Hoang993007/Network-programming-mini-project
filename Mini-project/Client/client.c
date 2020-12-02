@@ -84,12 +84,6 @@ void login ()
         {
             printf("OK\n");
             loginFlag = 1;
-            play();
-
-            char service[5];
-            // service 7: Sign out
-            strcpy(service, "7");
-            send(sockfd, service, sizeof(service), 0);
         }
         else if(res == ACCOUNT_JUST_BLOCKED)
         {
@@ -187,6 +181,7 @@ int main(int argc, char *argv[])
         // error occurred in select()
     }
 
+    //Step 3: Communicate with server
     if(FD_ISSET(sockfd, &writefds))
     {
         rcvBytes = recv(sockfd, recvBuff, sizeof(recvBuff), 0);
@@ -197,15 +192,43 @@ int main(int argc, char *argv[])
 
         rcvBytes = recv(sockfd, recvBuff, sizeof(recvBuff), 0);
         recvBuff[rcvBytes] = '\0';
-        if(strcmp(recvBuff, "WELCOME") == 0)
+        if(strcmp(recvBuff, "NEED_LOGIN") == 0)
         {
-            printf("Welcome! you have alrealdy logined\n");
+            login ();
         }
         else
         {
-            //Step 3: Communicate with server
-            login ();
+            printf("Welcome back! %s\n", recvBuff);
         }
+
+        int choice;
+        do
+        {
+            printf("1. New room\n");
+            printf("2. Join room\n");
+            printf("3. Playing history\n");
+            printf("Enter your choice: ");
+
+            scanf("%d", &choice);
+
+            switch(choice)
+            {
+            case 1:
+                printf("New room\n");
+                char service[5];
+                // service 7: Sign out
+                strcpy(service, "7");
+                send(sockfd, service, sizeof(service), 0);
+                break;
+            case 2:
+                break;
+            case 3:
+                break;
+            default:
+                break;
+            }
+        }
+        while(choice <= 3 && choice > 0);
     }
 
 // close the descriptor

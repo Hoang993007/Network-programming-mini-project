@@ -18,7 +18,7 @@
 extern char ACTIVE_CODE[ACTIVE_CODE_LENGTH];
 
 /*status: 1: active  - 2: blocked -  0: idle*/
-typedef enum 
+typedef enum
   {    IDLE,
        ACTIVE,
        BLOCKED
@@ -33,7 +33,7 @@ typedef struct _accountNode {
   accountStatus status;
   int wrongActiveCodeCount;
   int wrongPassCount;
-  
+
   int loginedCount;
   char loginedIP[255][5];
   struct _accountNode* next;

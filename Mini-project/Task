@@ -24,3 +24,7 @@ Còn phải cho phép nó đăng nhập lại một làn nữa cơ mà
 
 
 Thiết lập các mutex
+
+
+Mỗi room là một thread, khi mà ko còn người thì hủy room
+có chế độ out ra khỏi room

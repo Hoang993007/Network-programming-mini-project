@@ -42,6 +42,11 @@ typedef struct
     int thread_index;
 } user_thread_args;
 
+typedef struct
+{
+    struct sockaddr_in servaddr, cliaddr;
+} room;
+
 void *service_register(void *arg);
 void *service_activate(void *arg);
 void *service_signin(void *arg);
@@ -153,9 +158,9 @@ int main(int argc, char *argv[])
 
         //wait for an activity from a descriptor
         //(timeout 10.5 secs)
-        tv.tv_sec = 10;
-        tv.tv_usec = 500000;
 
+    tv.tv_sec = 10;
+    tv.tv_usec = 500000;
         // ở đây có nghĩa là khởi động việc nghe
         // nghe 1 lượt xem có cổng nào có cái để đọc vào không thì thêm vào hàng đợi.
         // sau đó là khóa các cổng, tiến hành xử lý các cái trong hàng đợi
@@ -163,7 +168,18 @@ int main(int argc, char *argv[])
         // The select() function asks kernel to simultaneously check multiple sockets (saved in readfs)...
         //...to see if they have data waiting to be recv(), or if you can send() data to them without blocking, or if some exception has occurred.
         //askForCheckingActivity = select(maxfd + 1, &readfds, NULL, NULL, &tv);
-        someThingToRead = select(maxfd + 1, &readfds, NULL, NULL, NULL);
+        printf("Selecting...\n");
+        //select() not detecting incoming data
+        // The sets of file descriptors passed to select() are modified by select(),
+        // so the set need to be re-initialized before for select() again.
+        // (The programming error would only be notable if from more than one socket data sall be received.)
+        // re-initialized...
+        FD_SET(listenfd, &readfds);
+        for(int k = 0; k < MAX_CLIENT; k++)
+            if(clientConnfd[k] != -1)
+                FD_SET(clientConnfd[k], &readfds);
+        someThingToRead = select(maxfd + 1, &readfds, NULL, NULL, &tv);
+        printf("Start processing\n");
         //  On success, returns the total number of bits that are set(that is the number of ready file descriptors)
         // • On time-out, returns 0
         // • On error, return -1
@@ -217,13 +233,16 @@ int main(int argc, char *argv[])
 
                 // confirm that connection are generated
                 send(connfd, "OK", sizeof("OK"), 0);
+
                 if(isLogedIn(inet_ntoa(cliaddr.sin_addr)) == LOGED_IN)
                 {
-                    send(connfd, "WELCOME", sizeof("WELCOME"), 0);
+                    accessPermit* logInAccount = logInInfoGet(inet_ntoa(cliaddr.sin_addr));
+                    printf("%s alrealdy logined - user name: %s\n", inet_ntoa(cliaddr.sin_addr), logInAccount->accessAccount->userName);
+                    send(connfd, logInAccount->accessAccount->userName, sizeof(userNameType), 0);
                 }
                 else
                 {
-                    send(connfd, "NEED_LOGIN", sizeof("NEED_LOGIN"), 0);
+                    send(connfd, "NEED_LOGIN", sizeof("NEED_LOGIN") + 1, 0);
                 }
 
                 // Thêm thằng mới kết nối vào dãy FD để bắt đầu lắng nghe và nhận yeu cầu từ nó
@@ -237,16 +256,25 @@ int main(int argc, char *argv[])
 
         // check the status of clientConnfd(s)
         for(int k = 0; k < MAX_CLIENT; k++)
-        {
-            if(clientConnfd[k] != -1) // => have something to read
+        {printf("%d\n", k);
+            if(clientConnfd[k] != -1)
             {
-                printf("Client connection descriptor: %d\n", clientConnfd[k]);
                 if(FD_ISSET(clientConnfd[k], &readfds)) // => have something to read (select have found something to read)
                 {
+                    printf("Client connection descriptor: %d\n", clientConnfd[k]);
                     recvBytes = recv(clientConnfd[k], recvBuff, sizeof(recvBuff), 0);  // receive service number
                     if(recvBytes < 0)
                     {
                         perror("Client exited\n");
+                        continue;
+                    }
+                    else if(recvBytes == 0)
+                    {
+                        printf("Closing the file descriptor of the client connection...\n");
+                        FD_CLR(clientConnfd[k], &readfds);
+                        close(clientConnfd[k]);
+                        clientConnfd[k] = -1;
+                        perror("Nothing receive from client\n");
                         continue;
                     }
 
@@ -256,7 +284,7 @@ int main(int argc, char *argv[])
                     int service;
                     service = atoi(recvBuff);
 
-                    print_username_pass();
+                    //print_username_pass();
 
                     // Prepare args for thread
                     user_thread_args* args = (user_thread_args*)malloc(sizeof(user_thread_args));
@@ -325,7 +353,8 @@ int main(int argc, char *argv[])
                         if(isLogedIn(inet_ntoa(cliaddr.sin_addr)) == LOGED_IN)
                         {
                             pthread_create(&(tid[freeThread]), NULL, &service_signout, (void*)args);
-
+                            void *val;
+                            pthread_join(tid[freeThread], &val);
 
                             printf("Closing the file descriptor of the client connection...\n");
                             FD_CLR(clientConnfd[k], &readfds);
@@ -523,7 +552,7 @@ void* service_signout(void *arg)
     if(isLogedIn(inet_ntoa(cliaddr.sin_addr)) == LOGED_IN)
     {
         signOut(inet_ntoa(cliaddr.sin_addr));
-        print_username_pass();
+        //print_username_pass();
         printf("Client exited\n");
     }
     else printf("Not loged in\n");
