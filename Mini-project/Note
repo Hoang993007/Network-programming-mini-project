@@ -1,0 +1,59 @@
+nhận yêu cầu chức năng thì dùng cái chờ, còn thực hiện chức năng thì dùng thread
+
+
+
+thread thif chia sẻ tất cr với nhau trừ stack hay những lệnh phải thực thi của thread đó
+
+
+
+Kiểm tra xem đã kết nối đến chưa hay đang chờ
+
+
+Khi yêu cầu kêt nói là gửi 1 thông điệp, sau đó lại ngay lập tức ửi 1 cai ữa
+=> thông điệp trước được đua vào hàng chờ của cổng, còn thông điệp sau bị loại bỏ (do côngr đã khóa)
+
+
+-----------------------------------------
+Đã là dùng Server máy mình thì lúc nào địa chỉ của Server cũng là 172.0.0.1 (local host)
+
+---------------------------------------------------
+Task:
+1) Xây dựng hàm kiểm tra xem có phải là IP hay là host name
+Đưa vào để kiểm tra tham số đầu vào.
+
+*) Kiểm tra nếu file vào sai ko đúng định dạng
+
+
+2) Phân chia chức năng cho rõ ràng. làm sao để sưj thay đổi là ít nhất
+
+3) Tìm hiểu rồi mới làm, không làm một cách tù mù
+Không làm lại những gì người ta đã làm rồi. Chỉ học nó thôi
+
+4) stdin
+
+
+5) Để làm nhiệm vụ gửi mật khẩu đã thay đổi đến cho những client đăng nhập cùng tài khoản với chương trình vẫn sử dụng hàm fork():
+- Đầu tiên để cho đỡ tốn tài nguyên thì đừng có khởi tạo database ở main process vì sau đó các child process sẽ coppy cái đó, nhưng với nhiều child process thì cái database của parent process sẽ ko đc cập nhật nên lỗi thời, lấy từ trong file ra luôn nhanh hơn. Hơn nữa main process ko xử lý nên ko cần database đó.
+- Thay vào đó khởi tạo cho database 1 khối chứa pid của các child process
+- Khi có thay đổi ở child process gửi signal cho parent process
+- parent process có nhiệm vụ điều phối gửi lại signal đó hoặc 1 signal khác cho child process khác
+
+---------------------------------------------------------
+Rút ra:
+Khi không còn đối sách, cần bỏ, bỏ luôn. Chờ đợi 1 cái gì từ trên trời rơi xuống. Trong lúc đó tìm cái khác mà làm. 
+Hiểu rõ chính mình và biêts cái gì tốt cho mình
+
+Nghĩ bài không thông, bỏ luôn
+ĐI học tiếng anh sẽ có ích hơn
+
+Lưu lại tất cả  các tài liệu học.
+Mua lấy một ổ cứng/tạo lấy 1 ổ mềm lớn
+
+---------------------------
+technical:
+send:
+Hãy chắc là xâu nhận có kích thước nhỏ hơn xâu cho
+
+Nếu xâu nhận có kích thước nhỏ hơn xâu to, nó chỉ co thể nhận tối đa giá trị của nó (nhận ít hơn thì dựa vào cái khai báo size trong lệnh recv)
+
+Thế nên nếu no ko nhận hết "hàng tồn" sẽ còn ở lại trong stream và sau đó sẽ đc đọc tiếp khi có lệnh recv nữa được gọi 
