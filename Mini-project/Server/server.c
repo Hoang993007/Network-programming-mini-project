@@ -236,9 +236,8 @@ int main(int argc, char *argv[])
 
                 if(isLogedIn(inet_ntoa(cliaddr.sin_addr)) == LOGED_IN)
                 {
-                    accessPermit* logInAccount = logInInfoGet(inet_ntoa(cliaddr.sin_addr));
-                    printf("%s alrealdy logined - user name: %s\n", inet_ntoa(cliaddr.sin_addr), logInAccount->accessAccount->userName);
-                    send(connfd, logInAccount->accessAccount->userName, sizeof(userNameType), 0);
+                    printf("%s alrealdy logined - user name: %s\n", inet_ntoa(cliaddr.sin_addr), getAccountNodeByLoginedIP(inet_ntoa(cliaddr.sin_addr))->userName);
+                    send(connfd, getAccountNodeByLoginedIP(inet_ntoa(cliaddr.sin_addr))->userName, sizeof(userNameType), 0);
                 }
                 else
                 {
@@ -370,7 +369,6 @@ int main(int argc, char *argv[])
     }
 
     freeAccountNode();
-    freeLogIn();
 
     return 0;
 }
@@ -494,7 +492,9 @@ void* service_changePass(void *arg)
         }
         printf("Changing password...\n");
 
+        pthread_mutex_lock(&lock);
         changePass(inet_ntoa(cliaddr.sin_addr), newPassword);
+        pthread_mutex_unlock(&lock);
 
         passwordType encodePass;
         int charCharIndex, numCharIndex;

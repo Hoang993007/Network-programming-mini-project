@@ -13,7 +13,7 @@
 #define MAX_WRONG_ACTIVE_CODE 3
 #define MAX_WRONG_PASS 3
 
-#define MAX_LOGINED_IP 5
+#define MAX_LOGIN_IP 5
 
 extern char ACTIVE_CODE[ACTIVE_CODE_LENGTH];
 
@@ -34,8 +34,10 @@ typedef struct _accountNode {
   int wrongActiveCodeCount;
   int wrongPassCount;
 
-  int loginedCount;
-  char loginedIP[255][5];
+  char loginedIP[255][MAX_LOGIN_IP];
+  int loginedIPMark[5];
+  int loginedIPNum;
+
   struct _accountNode* next;
 }accountNode;
 
@@ -50,6 +52,7 @@ void accountRegister (userNameType newUserName, passwordType password);
 int addAccountNode (char* userName, char* password, accountStatus status);
 // ============================================
 accountNode* getAccountNodeByUserName (char* userName);
+accountNode* getAccountNodeByLoginedIP (char* IP);
 int isExistUserName(char* userName);
 // ===================================
 int checkPassword(accountNode* accountCheck, char* password);

@@ -6,6 +6,7 @@
 
 #define LOGIN_ERROR 12
 #define LOGIN_SUCCESS 13
+#define LOGIN_DENIED 121
 
 #define ACCOUNT_EXIST 14
 #define ACCOUNT_NOT_EXIST 16

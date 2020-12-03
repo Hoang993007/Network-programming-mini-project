@@ -38,6 +38,20 @@ int maxfd;
 //set of socket descriptors
 fd_set writefds;
 
+void recv2 ()
+{
+    rcvBytes = recv(sockfd, recvBuff, sizeof(recvBuff), 0);
+    recvBuff[rcvBytes] = '\0';
+
+    if(strcmp(recvBuff, "NOTIFICATION") == 0)
+    {
+        rcvBytes = recv(sockfd, recvBuff, sizeof(recvBuff), 0);
+        recvBuff[rcvBytes] = '\0';
+        printf("Notification from server: %s\n", recvBuff);
+        recv2();
+    }
+}
+
 void play ()
 {
 }
@@ -60,8 +74,7 @@ void login ()
         getchar();
         send(sockfd, userName, sizeof(userName), 0);
 
-        rcvBytes = recv(sockfd, recvBuff, sizeof(recvBuff), 0);
-        recvBuff[rcvBytes] = '\0';
+        recv2();
         if(strcmp(recvBuff, "X") == 0)
         {
             printf("Wrong account\n");
@@ -74,8 +87,7 @@ void login ()
         send(sockfd, password, sizeof(password), 0);
 
         int res;
-        rcvBytes = recv(sockfd, recvBuff, sizeof(recvBuff), 0);
-        recvBuff[rcvBytes] = '\0';
+        recv2();
 
         res = atoi(recvBuff);
         //printf("resCode: %d\n", res);
@@ -184,14 +196,12 @@ int main(int argc, char *argv[])
     //Step 3: Communicate with server
     if(FD_ISSET(sockfd, &writefds))
     {
-        rcvBytes = recv(sockfd, recvBuff, sizeof(recvBuff), 0);
-        recvBuff[rcvBytes] = '\0';
+        recv2();
         printf("From server: %s\n", recvBuff);
 
         printf("Successfully connected to the server\n");
 
-        rcvBytes = recv(sockfd, recvBuff, sizeof(recvBuff), 0);
-        recvBuff[rcvBytes] = '\0';
+        recv2();
         if(strcmp(recvBuff, "NEED_LOGIN") == 0)
         {
             login ();

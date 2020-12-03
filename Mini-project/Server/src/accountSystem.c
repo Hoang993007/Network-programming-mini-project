@@ -44,12 +44,12 @@ int addAccountNode (char* userName, char* password, accountStatus status) {
   newNode->status = status;
   newNode->wrongActiveCodeCount = 0;
   newNode->wrongPassCount = 0;
-  newNode->loginedCount = 0;
-  newNode->next = NULL;
-
-  for(int i = 0; i < MAX_LOGINED_IP; i++) {
-    newNode->loginedIP[i][0] = '\0';
+  newNode->loginedIPNum = 0;
+  for(int i = 0; i < MAX_LOGIN_IP; i++) {
+    newNode->loginedIPMark[i] = 0;
   }
+
+  newNode->next = NULL;
 
   if(accountNode_front == NULL) {
     accountNode_front = newNode;
@@ -71,6 +71,24 @@ accountNode* getAccountNodeByUserName (char* userName) {
       return getNode;
     }
   }
+
+  return NULL;
+}
+
+accountNode* getAccountNodeByLoginedIP (char* IP) {
+  accountNode* tmp = accountNode_front;
+    while(tmp != NULL)
+    {
+        accountNode* getNode = tmp;
+        tmp = tmp->next;
+        if(getNode->loginedIPNum > 0)
+        {
+            for(int i = 0; i < MAX_LOGIN_IP; i++)
+                if(getNode->loginedIP[i][0] != '\0')
+                    if(strcmp(getNode->loginedIP[i], IP) == 0)
+                        return getNode;
+                    }
+    }
 
   return NULL;
 }

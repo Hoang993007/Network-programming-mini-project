@@ -4,64 +4,47 @@
 #include "../inc/services.h"
 #include "../inc/accountSystem.h"
 
-accessPermit* logedIn = NULL;
-int logedInCount = 0;
+int logIn (char* IP, userNameType userName, passwordType password)
+{
+    int res;
 
-int logIn (char* IP, userNameType userName, passwordType password) {
-  int res;
-  accountNode* logInAccount = accessToAccount (userName, password, &res);
-  printf("Res code: %d\n", res);
-  if(logInAccount == NULL)
+    accountNode* logInAccount = accessToAccount (userName, password, &res);
+    printf("Res code: %d\n", res);
+    if(logInAccount == NULL)
     {
-      printf("Error: Login error\n");
-      return res;
+        printf("Error: Login error\n");
+        return res;
     }
 
-  if(logedInCount == 0) {
-    logedIn = (accessPermit*)malloc(sizeof(accessPermit));
-    logedInCount++;
-
-  } else {
-    logedIn = realloc(logedIn, sizeof(accessPermit)*(logedInCount+1));
-    logedInCount++;
-  }
-
-  logedIn[logedInCount-1].accessAccount = logInAccount;
-  strcpy(logedIn[logedInCount-1].IP, IP);
-
-  logInAccount->loginedCount++;
-  for(int i = 0; i < MAX_LOGINED_IP; i++) {
-    if(logedIn->accessAccount->loginedIP[i][0] = '\0') {
-      strcpy(logInAccount->loginedIP[i], IP);
+    if(logInAccount->loginedIPNum == MAX_LOGIN_IP)
+    {
+        printf("Strict: Exceed max IP can login to account!\n");
+        return LOGIN_DENIED;
     }
-  }
-   
-  printf("Hello %s\n", logedIn[logedInCount-1].accessAccount->userName);
 
-  if(PRINT_LOGEDIN == 1) printLogedInAccount();
+    for(int i = 0; i < MAX_LOGIN_IP; i++)
+    {
+        if(logInAccount->loginedIPMark[i] == 0)
+        {
+            logInAccount->loginedIPNum++;
+            logInAccount->loginedIPMark[i] = 1;
+            strcpy(logInAccount->loginedIP[i], IP);
+            break;
+        }
+    }
 
-  res = LOGIN_SUCCESS;
-  return res;
+    printf("Hello %s\n", logInAccount->userName);
+
+    if(PRINT_LOGEDIN == 1) printLogedInAccount();
+
+    res = LOGIN_SUCCESS;
+    return res;
 }
 
 int isLogedIn (char* IP) {
-  if(logInInfoGet(IP) == NULL)
+  if(getAccountNodeByLoginedIP(IP) == NULL)
     return NOT_LOGED_IN;
   else return LOGED_IN;
-}
-
-void freeLogIn() {
-  free(logedIn);
-}
-
-accessPermit* logInInfoGet(char* IP) {
-  if(logedIn == NULL) return NULL;
-
-  for(int i = 0; i < logedInCount; i++) {
-    if(strcmp(logedIn[i].IP, IP) == 0)
-      return  &logedIn[i];
-  }
-  return NULL;
 }
 
 /* find friend
@@ -96,9 +79,7 @@ accessPermit* logInInfoGet(char* IP) {
 */
 
 void changePass (char* IP, passwordType newPassword) {
-  logedIn = logInInfoGet(IP);
-
-  accountNode* accountAccess = getAccountNodeByUserName(logedIn->accessAccount->userName);
+  accountNode* accountAccess = getAccountNodeByLoginedIP(IP);
 
   accountChangePass(accountAccess, newPassword);
 
@@ -121,42 +102,47 @@ void changePass (char* IP, passwordType newPassword) {
     }*/
 }
 
-void signOut (char* IP) {
-  accessPermit* logedIn = logInInfoGet(IP);
+void signOut (char* IP)
+{
+    accountNode* signOutAccount = getAccountNodeByLoginedIP(IP);
 
-  printf ("Goodbye %s", logedIn->accessAccount->userName);
-  printf("\n");
+    printf ("Goodbye %s", signOutAccount->userName);
+    printf("\n");
 
-  logedIn->accessAccount->loginedCount--;
-  for(int i = 0; i < MAX_LOGINED_IP; i++) {
-    if(strcmp(logedIn->accessAccount->loginedIP[i], IP) == 0) {
-      logedIn->accessAccount->loginedIP[i][0] = '\0';
+    for(int i = 0; i < MAX_LOGIN_IP; i++)
+    {
+        if(signOutAccount->loginedIPMark[i] == 1 && strcmp(signOutAccount->loginedIP[i], IP) == 0)
+            signOutAccount->loginedIPMark[i] = 0;
     }
-  }
+    signOutAccount->loginedIPNum--;
 
-  for(int i=0; i < logedInCount; i++) {
-    if(strcmp(logedIn[i].IP, IP) == 0) {
-      for(int j = i+1; j < logedInCount; j++)
-	logedIn[j-1] = logedIn[j];
-      logedInCount--;
-      logedIn = realloc(logedIn, sizeof(accessPermit)*logedInCount);
-
-      if(PRINT_LOGEDIN == 1) printLogedInAccount();
-      break;
-    }
-  }
+    if(PRINT_LOGEDIN == 1) printLogedInAccount();
 }
 
-void printLogedInAccount() {
-  printf ("---------------------------------");
-  printf("\n");
-  printf ("ACCOUNT LOGED IN:");
-  printf("\n");
-  printf("\n");
-  for(int i=0; i < logedInCount; i++) {
-    printf ("%s\n", logedIn[i].IP);
-    printf ("\t%s\n", logedIn[i].accessAccount->userName);
-  }
-  printf ("---------------------------------");
-  printf("\n");
+void printLogedInAccount()
+{
+    printf ("---------------------------------");
+    printf("\n");
+    printf ("ACCOUNT LOGED IN:");
+    printf("\n");
+    printf("\n");
+    accountNode* tmp = accountNode_front;
+    while(tmp != NULL)
+    {
+        accountNode* getNode = tmp;
+        tmp = tmp->next;
+        if(getNode->loginedIPNum > 0)
+        {
+            printf ("UserName: %s\n", getNode->userName);
+            for(int i = 0; i < MAX_LOGIN_IP; i++)
+                if(getNode->loginedIPMark[i] == 1)
+                {
+                    printf ("\t%d. %s\n", i, getNode->loginedIP[i]);
+                }
+
+        }
+    }
+
+    printf ("---------------------------------");
+    printf("\n");
 }
