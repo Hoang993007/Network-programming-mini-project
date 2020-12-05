@@ -14,38 +14,44 @@
 #include <arpa/inet.h>
 #include <errno.h>
 //
-#include "./inc/services.h"
-#include "./inc/accountSystem.h"
-#include "./inc/errorCode.h"
-#include "./inc/convertNumAndStr.h"
-//
 #include <sys/select.h>
 #include <sys/time.h>
 //
 #include <pthread.h>
 
+//My library
+#include "./inc/services.h"
+#include "./inc/accountSystem.h"
+#include "./inc/errorCode.h"
+#include "./inc/convertNumAndStr.h"
+#include "./inc/room.h"
+#include "./inc/threadManager.h"
+
 #define RECV_BUFF_SIZE 4096
 #define LISTENQ 3 /* the number of pending connections that can be queued for a server socket. (call waiting allowance */
 
 #define MAX_CLIENT 3
-#define MAX_THREAD 10
+#define MAX_SERVICE_THREAD 10
 
-pthread_t tid[MAX_THREAD];
-int t_index[MAX_THREAD];
+#define MAX_ROOM 2
+#define MAX_ROOM_PLAYER 5
+#define ROOM_NAME 20
 
-pthread_mutex_t lock;
+pthread_t service_thread_id[MAX_SERVICE_THREAD];
+int service_thread_index[MAX_SERVICE_THREAD];
 
-typedef struct
-{
-    struct sockaddr_in cliaddr;
-    int clientConnfd;
-    int thread_index;
-} user_thread_args;
+pthread_mutex_t client_connfd_lock = PTHREAD_MUTEX_INITIALIZER;;
 
-typedef struct
-{
-    struct sockaddr_in servaddr, cliaddr;
-} room;
+// clientConnfd hold ID of client connection
+int clientNum = 0;
+int clientConnfd[MAX_CLIENT];
+int wantSelect[MAX_CLIENT];
+struct in_addr connfd_IP[MAX_CLIENT];
+
+//set of socket descriptors
+fd_set readfds;
+// maxfd is the highest socket ID in readfds
+int maxfd = 0;
 
 void *service_register(void *arg);
 void *service_activate(void *arg);
@@ -54,6 +60,321 @@ void *service_changePass(void *arg);
 void *service_newGame(void *arg);
 void *service_gamePlayingHistory(void *arg);
 void *service_signout(void *arg);
+
+
+// ROOM ------------------------------------------------------------
+typedef struct _room
+{
+    pthread_cond_t enoughPlayer_cond;
+    pthread_mutex_t room_lock;
+    int roomID;
+    char roomName[ROOM_NAME];
+    pthread_t room_thread_id;
+
+    int playerNumPreSet;
+    int playerNum;
+    accountNode* player[MAX_ROOM_PLAYER];
+    //struct _room* next;
+} room;
+
+
+int roomIDGenerate = 0;
+int roomNum = 0;
+room* roomList[MAX_ROOM];
+
+pthread_t room_thread_id[MAX_ROOM];
+pthread_mutex_t room_data_lock = PTHREAD_MUTEX_INITIALIZER;;
+
+typedef struct
+{
+    struct sockaddr_in cliaddr;
+    int clientConnfd;
+    int thread_index;
+} user_thread_args;
+
+void roomListInit();
+void printRoom ();
+void* newRoom(void* arg);
+void* playerEnterRoom (void* arg);
+
+
+void roomListInit()
+{
+    for(int i = 0; i < MAX_ROOM; i++)
+    {
+        roomList[i] = NULL;
+    }
+}
+
+void* newRoom(void* arg)
+{
+    //Detached thread is cleaned up automatically when it terminates
+    pthread_detach(pthread_self());
+
+    int connfd;
+    struct sockaddr_in cliaddr;
+
+    user_thread_args *actual_args = arg;
+    cliaddr = actual_args->cliaddr;
+    connfd = actual_args->clientConnfd;
+    free(arg);
+
+            // Have to stop select with this connfd because even receive in here, process in here but still selected by the main thread
+    // meaning: now this connfd are belong to this thread
+    int connfd_index;
+
+    for(int k = 0; k < MAX_CLIENT; k++)
+        if(clientConnfd[k] == connfd)
+        {
+            connfd_index = k;
+            wantSelect[connfd_index] = 0;
+            break;
+        }
+
+
+    int recvBytes;
+    char recvBuff[RECV_BUFF_SIZE + 1];
+
+    char roomName[ROOM_NAME];
+    recvBytes = recv(connfd, recvBuff, sizeof(recvBuff), 0);
+    recvBuff[recvBytes] = '\0';
+    strcpy(roomName, recvBuff);
+    printf("[%s:%d]: Room name: %s\n", inet_ntoa(cliaddr.sin_addr), ntohs(cliaddr.sin_port), roomName);
+
+    int playerNumPreSet;
+    recvBytes = recv(connfd, recvBuff, sizeof(recvBuff), 0);
+    recvBuff[recvBytes] = '\0';
+    playerNumPreSet = atoi(recvBuff);
+    printf("[%s:%d]: Max player: %d\n", inet_ntoa(cliaddr.sin_addr), ntohs(cliaddr.sin_port), playerNumPreSet);
+
+
+                wantSelect[connfd_index] = 1;
+
+
+
+    if(roomNum < MAX_ROOM)
+    {
+        pthread_mutex_lock(&room_data_lock);
+
+        room* newRoom = (room*)malloc(sizeof(room));
+
+        roomIDGenerate++;
+        roomNum++;
+
+        newRoom->roomID = roomIDGenerate;
+        strcpy(newRoom->roomName, roomName);
+        newRoom->room_thread_id = pthread_self();
+
+        newRoom->playerNumPreSet = playerNumPreSet;
+        newRoom->playerNum = 1;
+        pthread_cond_init(&(newRoom->enoughPlayer_cond), NULL);
+        pthread_mutex_init(&(newRoom->room_lock), NULL);
+        newRoom->player[0] = getAccountNodeByLoginedIP(inet_ntoa(cliaddr.sin_addr));
+
+        for(int i = 1; i < playerNumPreSet; i++)
+        {
+            newRoom->player[i] = NULL;
+
+        }
+
+        int room_index;
+        for(room_index = 0; room_index < MAX_ROOM; room_index++)
+        {
+            if(roomList[room_index] == NULL)
+            {
+                roomList[room_index] = newRoom;
+                break;
+            }
+        }
+
+        printf("Sucessfully created new room!\n");
+        printRoom();
+
+        pthread_mutex_unlock(&room_data_lock);
+
+        //start playing
+        //wait untill there are enough player
+        pthread_mutex_lock(&(newRoom->room_lock));
+        if (newRoom->playerNum != newRoom->playerNumPreSet)
+        {
+
+
+        // Have to use is own mutex_lock or have to init mutex_lock??????????????????????????
+            printf("Waiting for player\n");
+            pthread_cond_wait(&(newRoom->enoughPlayer_cond), &(newRoom->room_lock));
+
+            //while(newRoom->playerNum != newRoom->playerNumPreSet);
+            //lặp quá nhiều và liên tục sẽ làm rối loạn luồng
+        }
+
+        printf("-----------------------------\n");
+        printf("Enough player! GAME START!\n");
+        printf("-----------------------------\n");
+
+
+        //Khóa tất cả các connfd của player để dành riêng cho trò chơi
+
+
+
+
+        // release lock
+        pthread_mutex_unlock(&(newRoom->room_lock));
+
+
+        room* tmp = newRoom;
+        roomList[room_index] = NULL;
+        free(tmp);
+        roomNum--;
+    }
+}
+
+void* playerEnterRoom (void* arg)
+{
+    //Detached thread is cleaned up automatically when it terminates
+    pthread_detach(pthread_self());
+
+    int connfd;
+    struct sockaddr_in cliaddr;
+
+    user_thread_args *actual_args = arg;
+    cliaddr = actual_args->cliaddr;
+    connfd = actual_args->clientConnfd;
+    free(arg);
+
+
+      // Have to stop select with this connfd because even receive in here, process in here but still selected by the main thread
+    // meaning: now this connfd are belong to this thread
+    int connfd_index;
+
+    for(int k = 0; k < MAX_CLIENT; k++)
+        if(clientConnfd[k] == connfd)
+        {
+            connfd_index = k;
+            wantSelect[connfd_index] = 0;
+            break;
+        }
+
+
+    int recvBytes;
+    char recvBuff[RECV_BUFF_SIZE + 1];
+    char sendBuff[RECV_BUFF_SIZE + 1];
+
+    if(roomNum == 0)
+    {
+        send(connfd, "NO_ROOM", sizeof("NO_ROOM"), 0);
+
+            pthread_mutex_unlock(&room_data_lock);
+            wantSelect[connfd_index] = 1;
+        return NULL;
+    }
+
+    int curRoomNum = roomNum;
+
+    tostring(sendBuff, curRoomNum);
+    send(connfd, sendBuff, sizeof(sendBuff), 0);
+
+    for(int i = 0; i < MAX_ROOM; i++)
+    {
+        if(roomList[i] != NULL)
+        {
+            tostring(sendBuff, roomList[i]->roomID);
+            send(connfd, sendBuff, sizeof(sendBuff), 0);
+
+            send(connfd, roomList[i]->roomName, sizeof(roomList[i]->roomName), 0);
+
+            tostring(sendBuff, roomList[i]->playerNumPreSet);
+            //printf("***%s***\n", sendBuff);
+            send(connfd, sendBuff, sizeof(sendBuff), 0);
+
+            tostring(sendBuff, roomList[i]->playerNum);
+            send(connfd, sendBuff, sizeof(sendBuff), 0);
+        }
+    }
+
+    send(connfd, "PRINT_ROOM_END", sizeof("PRINT_ROOM_END"), 0);
+
+    recvBytes = recv(connfd, recvBuff, sizeof(recvBuff), 0);
+    recvBuff[recvBytes] = '\0';
+    int chosenRoomID = atoi(recvBuff);
+    printf("[%s:%d]: Chosen room ID: %d\n", inet_ntoa(cliaddr.sin_addr), ntohs(cliaddr.sin_port), chosenRoomID);
+
+    pthread_mutex_lock(&room_data_lock);
+    printf("start entering...\n");
+    int i;
+    for(i = 0; i < MAX_ROOM; i++)
+    {
+        if(roomList[i] != NULL && roomList[i]->roomID == chosenRoomID)
+        {
+            if(roomList[i]->playerNum < roomList[i]->playerNumPreSet)
+            {
+                for(int j = 0; j < roomList[i]->playerNumPreSet; j++)
+                {
+                    if(roomList[i]->player[j] == NULL)
+                    {
+                        roomList[i]->player[j] = getAccountNodeByLoginedIP(inet_ntoa(cliaddr.sin_addr));
+                        roomList[i]->playerNum++;
+                        send(connfd, "ROOM_ADDED", sizeof("ROOM_ADDED"), 0);
+                        printRoom();
+                        break;
+                    };
+                }
+
+                if (roomList[i]->playerNum == roomList[i]->playerNumPreSet)
+                {
+                printf("enough player!\n");
+                    pthread_cond_signal(&(roomList[i]->enoughPlayer_cond));
+                }
+            }
+            else
+            {
+            printf("Room full\n");
+                send(connfd, "ROOM_FULL", sizeof("ROOM_FULL"), 0);
+            }
+            break;
+        }
+    }
+
+    if(i == MAX_ROOM)
+        send(connfd, "ROOM_DELETED", sizeof("ROOM_DELETED"), 0);
+
+
+
+    pthread_mutex_unlock(&room_data_lock);
+    wantSelect[connfd_index] = 1;
+}
+
+void printRoom ()
+{
+    printf("-----------------------------\n");
+    printf("Room info\n\n");
+        printf("Room num: %d\n", roomNum);
+    for(int i = 0; i < MAX_ROOM; i++)
+    {
+        if(roomList[i] != NULL)
+        {
+            printf("Room ID: %d\n", roomList[i]->roomID);
+            printf("Room thread ID: %ld\n", roomList[i]->room_thread_id);
+            printf("Room name: %s\n", roomList[i]->roomName);
+            printf("Num of player preset: %d\n", roomList[i]->playerNumPreSet);
+            printf("Num of player: %d\n", roomList[i]->playerNum);
+
+            for(int j = 0; j < roomList[i]->playerNumPreSet; j++)
+            {
+                if(roomList[i]->player[j] != NULL)
+                {
+                    printf("Player name: %s\n", roomList[i]->player[j]->userName);
+                }
+                else printf("Player name: waiting...\n");
+            }
+        }
+    }
+    printf("-----------------------------\n");
+}
+
+// add check free room thread
+//-------------------------------------------------------------------
+
+
 
 int main(int argc, char *argv[])
 {
@@ -68,13 +389,9 @@ int main(int argc, char *argv[])
 
     int SERV_PORT;
     int listenfd, connfd, recvBytes;
-
     socklen_t clientSocketLen; // size of client socket address
-
     struct sockaddr_in servaddr, cliaddr; // address structure
-
     char recvBuff[RECV_BUFF_SIZE + 1];
-
 
     SERV_PORT = atoi(argv[1]);
 
@@ -117,69 +434,69 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    // clientConnfd hold ID of client connection
-    int clientConnfd[FD_SETSIZE], someThingToRead;
-    int maxfd;
-
-    //set of socket descriptors
-    fd_set readfds;
-
-    struct timeval tv;
-    // Assign initial value for the array of connection socket
+    // Step 3: Select
     for(int i = 0; i < MAX_CLIENT; i++)
     {
         clientConnfd[i] = -1;
+        wantSelect[i] = 0;
     }
 
     /* clear all bits in fdset */
     FD_ZERO(&readfds);
+    // fd_sets used to specify the descriptors that we want the kernel to test for reading, writing, and exception conditions.
 
-    // fd_sets use to specify the descriptors that we want the kernel to test for reading, writing, and exception conditions.
-
-    // add listenfd to set and turn on the bit for fd in set
-    FD_SET(listenfd, &readfds);
-    maxfd = listenfd;
-
-    // maxfd is the highest socket ID in readfds
-
-    printf("%s\n", "Server are now waiting for connections...");
-
-    //Step 3: Communicate with client
-    /* now loop, receiving data and printing what we received */
-
-    for (int i = 0; i < MAX_THREAD; i++)
+    for (int i = 0; i < MAX_SERVICE_THREAD; i++)
     {
-        t_index[i] = -1;
+        service_thread_index[i] = -1;
     }
 
+    roomListInit();
+
+    printf("%s\n", "Server are now waiting for connections...");
     while(1)
     {
         clientSocketLen = sizeof(cliaddr);
 
-        //wait for an activity from a descriptor
         //(timeout 10.5 secs)
-
-    tv.tv_sec = 10;
-    tv.tv_usec = 500000;
-        // ở đây có nghĩa là khởi động việc nghe
-        // nghe 1 lượt xem có cổng nào có cái để đọc vào không thì thêm vào hàng đợi.
-        // sau đó là khóa các cổng, tiến hành xử lý các cái trong hàng đợi
+        struct timeval tv;
+        tv.tv_sec = 5;
+        tv.tv_usec = 500000;
 
         // The select() function asks kernel to simultaneously check multiple sockets (saved in readfs)...
         //...to see if they have data waiting to be recv(), or if you can send() data to them without blocking, or if some exception has occurred.
-        //askForCheckingActivity = select(maxfd + 1, &readfds, NULL, NULL, &tv);
-        printf("Selecting...\n");
-        //select() not detecting incoming data
+
         // The sets of file descriptors passed to select() are modified by select(),
         // so the set need to be re-initialized before for select() again.
         // (The programming error would only be notable if from more than one socket data sall be received.)
-        // re-initialized...
+
+        printf("\n#Selecting...\n\n");
+        // add fd to set and turn on the bit for fd in set
+        FD_ZERO(&readfds);
+        // Nếu add trước khi select  khởi động thfi select  sẽ không nghe nó(vì nó chưa được thêm vào readfds đốivới select
+        // vì thế thì nghe cứ nghe hếtrồi sau chọn cai nào thì chọn
         FD_SET(listenfd, &readfds);
+        if(maxfd < listenfd)
+        {
+            maxfd = listenfd;
+        }
         for(int k = 0; k < MAX_CLIENT; k++)
             if(clientConnfd[k] != -1)
+            {
                 FD_SET(clientConnfd[k], &readfds);
-        someThingToRead = select(maxfd + 1, &readfds, NULL, NULL, &tv);
-        printf("Start processing\n");
+                if(maxfd < clientConnfd[k])
+                {
+                    maxfd = clientConnfd[k];
+                }
+            }
+
+        int someThingToRead;
+        //someThingToRead = select(maxfd + 1, &readfds, NULL, NULL, &tv);
+        //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        someThingToRead = select(maxfd + 1, &readfds, NULL, NULL, NULL);
+        //Nếu thêm cai time vào sẽ sai, không hiểu tại sao
+        // Dự đoán: gây độ trễ
+        //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!111
+
         //  On success, returns the total number of bits that are set(that is the number of ready file descriptors)
         // • On time-out, returns 0
         // • On error, return -1
@@ -191,22 +508,34 @@ int main(int argc, char *argv[])
         }
         else if(someThingToRead == 0)
         {
-            printf("Timeout occurred! No data after 10.5s... \n");
+            printf("\n#Timeout occurred! No data... \n\n");
         }
         else printf ("The number of ready file descriptors (in the FD array) : %d\n", someThingToRead);
 
-        // Xử lý các yêu cầu mà select đã nghe được từ các cổng
+        printf("\n#Start processing\n\n");
 
+                //after add to set, it mark as have something to read while actual not
+        connfd = -1;
 
         // NOTE: the listenfd or connfd are both descriptor
         // select() check if a descriptor have an activity to exec or not. Not only use for listenfd or connfd
 
-        // NOTE: in this small program we use only listenfd socket to connect with client
-
         // check the status of listenfd
         // if there is a client want to connect through listenfd socket the select() function will mark listenfd in readfds as 1 - have an activity
+
+
+
+        // Neu sau vai lan select ma khong nhan duoc tin hieu => client da ngat ket noi
+
+
+
+
+
+
         if (FD_ISSET (listenfd, &readfds))
         {
+            if(clientNum >= MAX_CLIENT) continue;
+
             connfd = accept(listenfd, (struct sockaddr*) &cliaddr, &clientSocketLen);
             // Accept a connection request -> return a File Descriptor (FD)
             if((connfd) < 0)
@@ -226,7 +555,9 @@ int main(int argc, char *argv[])
                     if(clientConnfd[i] == -1)
                     {
                         clientConnfd[i] = connfd;
-
+                        wantSelect[i] = 1;
+                        connfd_IP[i].s_addr=cliaddr.sin_addr.s_addr;
+                        clientNum++;
                         break;
                     }
                 }
@@ -241,27 +572,27 @@ int main(int argc, char *argv[])
                 }
                 else
                 {
-                    send(connfd, "NEED_LOGIN", sizeof("NEED_LOGIN") + 1, 0);
-                }
+                    send(connfd, "NEED_LOGIN", sizeof("NEED_LOGIN"), 0);
 
-                // Thêm thằng mới kết nối vào dãy FD để bắt đầu lắng nghe và nhận yeu cầu từ nó
-                FD_SET(connfd, &readfds);
-                if(connfd > maxfd)
-                {
-                    maxfd = connfd;
                 }
             }
         }
 
         // check the status of clientConnfd(s)
         for(int k = 0; k < MAX_CLIENT; k++)
-        {printf("%d\n", k);
-            if(clientConnfd[k] != -1)
+        {
+            //after add to set, it mark as have something to read while actual not
+            if(clientConnfd[k] != -1 && wantSelect[k] == 1 && clientConnfd[k] != connfd)
             {
                 if(FD_ISSET(clientConnfd[k], &readfds)) // => have something to read (select have found something to read)
                 {
+
+                    //check if printf("Too many thread...");
+
                     printf("Client connection descriptor: %d\n", clientConnfd[k]);
+
                     recvBytes = recv(clientConnfd[k], recvBuff, sizeof(recvBuff), 0);  // receive service number
+
                     if(recvBytes < 0)
                     {
                         perror("Client exited\n");
@@ -274,7 +605,6 @@ int main(int argc, char *argv[])
                         close(clientConnfd[k]);
                         clientConnfd[k] = -1;
                         perror("Nothing receive from client\n");
-                        continue;
                     }
 
                     recvBuff[recvBytes] = '\0';
@@ -283,23 +613,20 @@ int main(int argc, char *argv[])
                     int service;
                     service = atoi(recvBuff);
 
-                    //print_username_pass();
-
-                    // Prepare args for thread
+                    // Prepare user args for thread
                     user_thread_args* args = (user_thread_args*)malloc(sizeof(user_thread_args));
                     args->cliaddr = cliaddr;
-                    args->clientConnfd = connfd;
+                    args->clientConnfd = clientConnfd[k];
 
-                    int freeThread = -1;
-                    while (freeThread < 0)
-                    {
-                        for(int i = 0; i < MAX_THREAD; i++)
-                            if(t_index[i] == -1)
-                                freeThread = i;
-                            else printf("Too many thread...");
-                    }
+                    int freeThread_index = -1;
+                    for(int i = 0; i < MAX_SERVICE_THREAD; i++)
+                        if(service_thread_index[i] == -1)
+                        {
+                            freeThread_index = i;
+                            break;
+                        }
 
-                    args->thread_index = freeThread;
+                    args->thread_index = freeThread_index;
 
                     // Create a thread to process the service
                     switch(service)
@@ -316,33 +643,34 @@ int main(int argc, char *argv[])
 
                     case 3:
                         printf ("%s\n", "Service 3: Sign in");
-                        pthread_create(&(tid[freeThread]), NULL, &service_signin, (void*)args);
+                        pthread_create(&(service_thread_id[freeThread_index]), NULL, &service_signin, (void*)args);
                         break;
 
                     case 4:
                         printf ("%s\n", "Service 4: Change password");
                         if(isLogedIn(inet_ntoa(cliaddr.sin_addr)) == LOGED_IN)
                         {
-                            //service_changePass(cliaddr, clientConnfd[k]);
+                            pthread_create(&(service_thread_id[freeThread_index]), NULL, &service_changePass, (void*)args);
+                            printf("cheking...\n");
                         }
                         else printf("Not loged in\n");
                         break;
 
                     case 5:
-                        printf ("%s\n", "Service 5: New game");
+                        printf ("%s\n", "Service 5: New room");
                         if(isLogedIn(inet_ntoa(cliaddr.sin_addr)) == LOGED_IN)
                         {
-                            //service_newGame(cliaddr, clientConnfd[k]);
+                            pthread_create(&(service_thread_id[freeThread_index]), NULL, &newRoom, (void*)args);
                         }
                         else printf("Not loged in\n");
                         break;
 
                     case 6:
-                        printf ("%s\n", "Service 6: Game playing history");
+                        printf ("%s\n", "Service 6: Player enter room");
                         if(isLogedIn(inet_ntoa(cliaddr.sin_addr)) == LOGED_IN)
                         {
+                            pthread_create(&(service_thread_id[freeThread_index]), NULL, &playerEnterRoom, (void*)args);
 
-                            //service_gamePlayingHistory(cliaddr, clientConnfd[k]);
                         }
                         else printf("Not loged in\n");
                         break;
@@ -351,9 +679,9 @@ int main(int argc, char *argv[])
                         printf ("%s\n", "Service 7: Sign out");
                         if(isLogedIn(inet_ntoa(cliaddr.sin_addr)) == LOGED_IN)
                         {
-                            pthread_create(&(tid[freeThread]), NULL, &service_signout, (void*)args);
+                            pthread_create(&(service_thread_id[freeThread_index]), NULL, &service_signout, (void*)args);
                             void *val;
-                            pthread_join(tid[freeThread], &val);
+                            pthread_join(service_thread_id[freeThread_index], &val);
 
                             printf("Closing the file descriptor of the client connection...\n");
                             FD_CLR(clientConnfd[k], &readfds);
@@ -385,18 +713,32 @@ void* service_activate(void *arg)
 
 void* service_signin(void *arg)
 {
-    int clientConnfd;
-    struct sockaddr_in cliaddr;
-    int thread_index;
-
     //Detached thread is cleaned up automatically when it terminates
     pthread_detach(pthread_self());
 
+    int connfd;
+    struct sockaddr_in cliaddr;
+    int thread_index;
+
     user_thread_args *actual_args = arg;
+
     cliaddr = actual_args->cliaddr;
-    clientConnfd = actual_args->clientConnfd;
+    connfd = actual_args->clientConnfd;
     thread_index = actual_args->thread_index;
+
     free(arg);
+
+    // Have to stop select with this connfd because even receive in here, process in here but still selected by the main thread
+    // meaning: now this connfd are belong to this thread
+    int connfd_index;
+
+    for(int k = 0; k < MAX_CLIENT; k++)
+        if(clientConnfd[k] == connfd)
+        {
+            connfd_index = k;
+            wantSelect[connfd_index] = 0;
+            break;
+        }
 
     int recvBytes;
     char recvBuff[RECV_BUFF_SIZE + 1];
@@ -404,124 +746,97 @@ void* service_signin(void *arg)
     userNameType userName;
     passwordType password;
 
-    recvBytes = recv(clientConnfd, recvBuff, sizeof(recvBuff), 0);
+    recvBytes = recv(connfd, recvBuff, sizeof(recvBuff), 0);
     userName[recvBytes] = '\0';
     strcpy(userName, recvBuff);
     printf("[%s:%d]: User name: %s\n", inet_ntoa(cliaddr.sin_addr), ntohs(cliaddr.sin_port), userName);
 
     if(isExistUserName(userName) == ACCOUNT_EXIST)
     {
-        send(clientConnfd, "O", sizeof("O"), 0);
+        send(connfd, "O", sizeof("O"), 0);
     }
     else
     {
         printf("Account doesn't exit\n");
-        send(clientConnfd, "X", sizeof("X"), 0);
+        send(connfd, "X", sizeof("X"), 0);
         return NULL;
     }
 
-    recvBytes = recv(clientConnfd, recvBuff, sizeof(recvBuff), 0);
+    recvBytes = recv(connfd, recvBuff, sizeof(recvBuff), 0);
     recvBuff[recvBytes] = '\0';
     strcpy(password, recvBuff);
     printf("[%s:%d]: password: %s\n", inet_ntoa(cliaddr.sin_addr), ntohs(cliaddr.sin_port), password);
 
-    if(isLogedIn(inet_ntoa(cliaddr.sin_addr)) == NOT_LOGED_IN)
-    {
-        int res = logIn (inet_ntoa(cliaddr.sin_addr), userName, password);
-        // for test
-        // printf("%d\n", res);
-        char sres[10];
-        tostring(sres, res);
-        send(clientConnfd, sres, sizeof(sres), 0);
-    }
-    else
-    {
-        printf("You're alrealdy logined\n");
-    }
+    int res = logIn (inet_ntoa(cliaddr.sin_addr), userName, password);
+    char sres[10];
+    tostring(sres, res);
+    send(connfd, sres, sizeof(sres), 0);
 
-    t_index[thread_index] = -1;
+    wantSelect[connfd_index] = 1;
+    service_thread_index[thread_index] = -1;
 }
 
 void* service_changePass(void *arg)
 {
-    int clientConnfd;
-    struct sockaddr_in cliaddr;
-    int thread_index;
-
     //Detached thread is cleaned up automatically when it terminates
     pthread_detach(pthread_self());
 
+    int connfd;
+    struct sockaddr_in cliaddr;
+    int thread_index;
+
     user_thread_args *actual_args = arg;
+
     cliaddr = actual_args->cliaddr;
-    clientConnfd = actual_args->clientConnfd;
+    connfd = actual_args->clientConnfd;
     thread_index = actual_args->thread_index;
+
     free(arg);
+
+    // Have to stop select with this connfd because even receive in here, process in here but still selected by the main thread
+    // meaning: now this connfd are belong to this thread
+    int connfd_index;
+
+    for(int k = 0; k < MAX_CLIENT; k++)
+        if(clientConnfd[k] == connfd)
+        {
+            connfd_index = k;
+            wantSelect[connfd_index] = 0;
+            break;
+        }
 
     int recvBytes;
     char recvBuff[RECV_BUFF_SIZE + 1];
 
-    if(isLogedIn(inet_ntoa(cliaddr.sin_addr)) != LOGED_IN)
+    passwordType newPassword;
+
+    recvBytes = recv(connfd, recvBuff, sizeof(recvBuff), 0);
+    recvBuff[recvBytes] = '\0';
+    strcpy(newPassword, recvBuff);
+    printf("New password: %s\n", newPassword);
+
+    printf("Changing password...\n");
+
+    pthread_mutex_lock(&client_connfd_lock);
+    changePass(inet_ntoa(cliaddr.sin_addr), newPassword);
+    pthread_mutex_unlock(&client_connfd_lock);
+
+    for(int i = 0; i< MAX_CLIENT; i++)
     {
-        printf("Not loged in\n");
-    }
-    else
-    {
-        passwordType newPassword;
-
-        recvBytes = recv(clientConnfd, recvBuff, sizeof(recvBuff), 0);
-        recvBuff[recvBytes] = '\0';
-        strcpy(newPassword, recvBuff);
-        printf("New password: %s\n", newPassword);
-
-        int numChar = 0;
-        for(int i = 0; i < strlen(newPassword); i++)
+        //printf("%d\n", clientConnfd[i]);
+        //printf("%d\n", connfd_IP[i].s_addr);
+        if(clientConnfd[i] != -1 && clientConnfd[i] != connfd && connfd_IP[i].s_addr == cliaddr.sin_addr.s_addr)
         {
-            if (newPassword[i] < '0'
-                    || (newPassword[i] > '9' && newPassword[i] < 'A')
-                    || (newPassword[i] > 'Z' && newPassword[i] < 'a')
-                    || newPassword[i] > 'z')
-            {
-                send(clientConnfd, "Error", sizeof("Error"), 0);
-                break;
-            }
-
-            if(newPassword[i] <= '9' && newPassword[i] >= '0')
-            {
-                numChar++;
-            }
+            //printf("***%d\n", clientConnfd[i]);
+            send(clientConnfd[i], "NOTIFICATION", sizeof("NOTIFICAION")+1, 0);
+            send(clientConnfd[i], "Your password have been changed!", sizeof("Your password have been changed!"), 0);
         }
-        printf("Changing password...\n");
-
-        pthread_mutex_lock(&lock);
-        changePass(inet_ntoa(cliaddr.sin_addr), newPassword);
-        pthread_mutex_unlock(&lock);
-
-        passwordType encodePass;
-        int charCharIndex, numCharIndex;
-        encodePass[strlen(newPassword)] = '\0';
-        charCharIndex = numChar;
-        numCharIndex = 0;
-        printf("New password num: %d\n", numChar);
-        printf("New password char: %d\n", (int)(strlen(newPassword) - numChar));
-
-        for(int i = 0; i < strlen(newPassword); i++)
-        {
-            if(newPassword[i] <= '9' && newPassword[i] >= '0')
-            {
-                encodePass[numCharIndex] = newPassword[i];
-                numCharIndex++;
-            }
-            else
-            {
-                encodePass[charCharIndex] = newPassword[i];
-                charCharIndex++;
-            }
-        }
-        printf("EncodedPass: %s\n", encodePass);
-        send(clientConnfd, encodePass, sizeof(encodePass), 0);
     }
 
-    t_index[thread_index] = -1;
+    wantSelect[connfd_index] = 1;
+
+    storeUsername_passData();
+    service_thread_index[thread_index] = -1;
 }
 
 void* service_newGame(void *arg)
@@ -536,26 +851,36 @@ void* service_gamePlayingHistory(void *arg)
 
 void* service_signout(void *arg)
 {
-    int clientConnfd;
-    struct sockaddr_in cliaddr;
-    int thread_index;
-
     //Detached thread is cleaned up automatically when it terminates
     pthread_detach(pthread_self());
 
+    int connfd;
+    struct sockaddr_in cliaddr;
+    int thread_index;
+
     user_thread_args *actual_args = arg;
+
     cliaddr = actual_args->cliaddr;
-    clientConnfd = actual_args->clientConnfd;
+    connfd = actual_args->clientConnfd;
     thread_index = actual_args->thread_index;
+
     free(arg);
 
-    if(isLogedIn(inet_ntoa(cliaddr.sin_addr)) == LOGED_IN)
-    {
-        signOut(inet_ntoa(cliaddr.sin_addr));
-        //print_username_pass();
-        printf("Client exited\n");
-    }
-    else printf("Not loged in\n");
+    // Have to stop select with this connfd because even receive in here, process in here but still selected by the main thread
+    // meaning: now this connfd are belong to this thread
+    int connfd_index;
 
-    t_index[thread_index] = -1;
+    for(int k = 0; k < MAX_CLIENT; k++)
+        if(clientConnfd[k] == connfd)
+        {
+            connfd_index = k;
+            wantSelect[connfd_index] = 0;
+            break;
+        }
+
+    signOut(inet_ntoa(cliaddr.sin_addr));
+    printf("Client exited\n");
+
+    wantSelect[connfd_index] = 1;
+    service_thread_index[thread_index] = -1;
 }

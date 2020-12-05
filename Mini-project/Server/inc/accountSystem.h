@@ -35,7 +35,7 @@ typedef struct _accountNode {
   int wrongPassCount;
 
   char loginedIP[255][MAX_LOGIN_IP];
-  int loginedIPMark[5];
+  int loginedIPMark[MAX_LOGIN_IP];
   int loginedIPNum;
 
   struct _accountNode* next;

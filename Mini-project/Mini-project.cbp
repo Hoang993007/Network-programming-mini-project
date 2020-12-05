@@ -52,6 +52,7 @@
 		<Unit filename="Server/inc/convertNumAndStr.h" />
 		<Unit filename="Server/inc/errorCode.h" />
 		<Unit filename="Server/inc/question.h" />
+		<Unit filename="Server/inc/room.h" />
 		<Unit filename="Server/inc/services.h" />
 		<Unit filename="Server/server.c">
 			<Option compilerVar="CC" />
@@ -63,6 +64,9 @@
 			<Option compilerVar="CC" />
 		</Unit>
 		<Unit filename="Server/src/errorCode.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="Server/src/room.c">
 			<Option compilerVar="CC" />
 		</Unit>
 		<Unit filename="Server/src/services.c">

@@ -6,6 +6,9 @@
 
 int logIn (char* IP, userNameType userName, passwordType password)
 {
+    if(isLogedIn (IP) == LOGED_IN)
+        return LOGIN_DENIED;
+
     int res;
 
     accountNode* logInAccount = accessToAccount (userName, password, &res);

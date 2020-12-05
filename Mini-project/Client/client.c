@@ -52,6 +52,25 @@ void recv2 ()
     }
 }
 
+void tostring(char str[], int num)
+{
+  int i, rem, len = 0, n;
+
+  n = num;
+  while (n != 0)
+    {
+      len++;
+      n /= 10;
+    }
+  for (i = 0; i < len; i++)
+    {
+      rem = num % 10;
+      num = num / 10;
+      str[len - (i + 1)] = rem + '0';
+    }
+  str[len] = '\0';
+}
+
 void play ()
 {
 }
@@ -111,48 +130,6 @@ void login ()
         }
     }
     while (loginFlag != 1);
-
-
-
-//            strcpy(service, "6");
-//
-//            int terminateNewPass = 0;
-//            do
-//            {
-//                passwordType newPassword;
-//                printf("New password: ");
-//                scanf("%s", newPassword);
-//                getchar();
-//
-//                if(strcmp(newPassword, "bye") == 0)
-//                {
-//                    terminateNewPass = 1;
-//                    terminate = 1; // end program
-//                    strcpy(service, "7");
-//                    send(sockfd, service, sizeof(service), 0);
-//                    printf("Goodbye %s\n", userName);
-//                    continue;
-//                }
-//
-//                send(sockfd, service, sizeof(service), 0);
-//                printf("Demand for changing password...\n");
-//                send(sockfd, newPassword, sizeof(newPassword), 0);
-//                printf("Receive encoded password...\n");
-//                rcvBytes = recv(sockfd, recvBuff, sizeof(recvBuff), 0);
-//                puts(recvBuff);
-//            }
-//            while(terminateNewPass == 0);
-//        }
-//
-//        /*
-//          if((rcvBytes = recv(sockfd, recvBuff, sizeof(recvBuff), 0)) == 0) {
-//          perror("The server terminated prematurely");
-//          exit(4);
-//          } else {
-//          recvBuff[rcvBytes] = '\0';
-//          printf("%s\n", recvBuff);
-//          }*/
-
 }
 
 int main(int argc, char *argv[])
@@ -214,31 +191,133 @@ int main(int argc, char *argv[])
         int choice;
         do
         {
-            printf("1. New room\n");
+            printf("0. Change pass\n");
+            printf("1. \n");
             printf("2. Join room\n");
-            printf("3. Playing history\n");
+            printf("3. New room\n");
             printf("Enter your choice: ");
 
             scanf("%d", &choice);
 
             switch(choice)
             {
-            case 1:
-                printf("New room\n");
+            case 0:
+                printf("Change pass\n");
                 char service[5];
+
+                strcpy(service, "4");
+
+                send(sockfd, service, sizeof(service), 0);
+
+                passwordType newPassword;
+                printf("New password: ");
+                scanf("%s", newPassword);
+                getchar();
+
+                send(sockfd, newPassword, sizeof(newPassword), 0);
+
+                /*
+                if(strcmp(newPassword, "bye") == 0)
+                {
+                    terminateNewPass = 1;
+                    terminate = 1; // end program
+                    strcpy(service, "7");
+                    send(sockfd, service, sizeof(service), 0);
+                    printf("Goodbye %s\n", userName);
+                    continue;
+                }
+                */
+
+                printf("Demand for changing password...\n");
+                printf("Receive encoded password...\n");
+                recv2();
+                puts(recvBuff);
+
+                /*
+                  if((rcvBytes = recv(sockfd, recvBuff, sizeof(recvBuff), 0)) == 0) {
+                  perror("The server terminated prematurely");
+                  exit(4);
+                  } else {
+                  recvBuff[rcvBytes] = '\0';
+                  printf("%s\n", recvBuff);
+                  }*/
+
+                break;
+
+            case 1:
                 // service 7: Sign out
                 strcpy(service, "7");
                 send(sockfd, service, sizeof(service), 0);
                 break;
             case 2:
+                printf("Enter room\n");
+                strcpy(service, "6");
+                send(sockfd, service, sizeof(service), 0);
+
+                recv2();
+                if(strcmp(recvBuff, "NO_ROOM") == 0)
+                {
+                    puts(recvBuff);
+                    continue;
+                }
+
+                printf("Room num: %s\n", recvBuff);
+
+                while(1)
+                {
+                    recv2();
+                    if(strcmp(recvBuff, "PRINT_ROOM_END") == 0)
+                        break;
+                    printf("Room ID: %s\n", recvBuff);
+                    recv2();
+                    printf("Room name: %s\n", recvBuff);
+                    recv2();
+                    printf("Num of player preset: %s---------\n", recvBuff);
+                    recv2();
+                    printf("Num of player: %s-------------------\n", recvBuff);
+                }
+
+                int chosenRoom;
+                printf("Enter ID of room: ");
+                scanf("%d", &chosenRoom);
+                getchar();
+                char chosenRoom_char[5];
+
+                tostring(chosenRoom_char, chosenRoom);
+                send(sockfd, chosenRoom_char, sizeof(chosenRoom_char), 0);
+
+                recv2();
+                puts(recvBuff);
                 break;
             case 3:
+                printf("New room\n");
+                // service 7: Sign out
+                strcpy(service, "5");
+                send(sockfd, service, sizeof(service), 0);
+
+
+
+                char roomName[255];
+                printf("Room name: ");
+                scanf("%s", roomName);
+                getchar();
+
+                send(sockfd, roomName, sizeof(roomName), 0);
+
+                int playerNumPreSet;
+                printf("playerNumPreSet: ");
+                scanf("%d", &playerNumPreSet);
+
+                char playerNumPreSet_char[2];
+                playerNumPreSet_char[0] = playerNumPreSet + '0';
+
+                send(sockfd, playerNumPreSet_char, sizeof(playerNumPreSet_char), 0);
                 break;
             default:
                 break;
             }
         }
-        while(choice <= 3 && choice > 0);
+        while(choice <= 3 && choice >= 0);
     }
 
 // close the descriptor

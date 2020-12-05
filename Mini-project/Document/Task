@@ -28,3 +28,21 @@ Thiết lập các mutex
 
 Mỗi room là một thread, khi mà ko còn người thì hủy room
 có chế độ out ra khỏi room
+
+
+
+Trong thời gian quasd lâu mà khoog nhận được hồi đaps => ngắt kết nối + xóa đi kêts nối đó trong danh sách chờ
+
+nhớ là mảng chư thỉnh thoảng nó tự ghi vào dù mình ko alfm gì đến nó. kHông thể tin vào đó được
+
+
+truwowngf howpj gửi cả một loạt thông báo thì sao?????
+
+
+
+
+
+
+
+
+trường hợ xung đột: gửi gứm fd cho 1 thread rồi thì sẽ xóa trong connect clinet fd, khi đó thằng khác muốn truy cập vào thì lại ko được
