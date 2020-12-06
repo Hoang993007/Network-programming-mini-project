@@ -18,6 +18,9 @@
 #include <sys/time.h>
 //
 #include <pthread.h>
+//
+#include <time.h>
+
 
 //My library
 #include "./inc/services.h"
@@ -28,6 +31,7 @@
 #include "./inc/threadManager.h"
 
 #define RECV_BUFF_SIZE 4096
+#define SEND_BUFF_SIZE 100
 #define LISTENQ 3 /* the number of pending connections that can be queued for a server socket. (call waiting allowance */
 
 #define MAX_CLIENT 3
@@ -40,7 +44,8 @@
 pthread_t service_thread_id[MAX_SERVICE_THREAD];
 int service_thread_index[MAX_SERVICE_THREAD];
 
-pthread_mutex_t client_connfd_lock = PTHREAD_MUTEX_INITIALIZER;;
+pthread_mutex_t client_connfd_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 
 // clientConnfd hold ID of client connection
 int clientNum = 0;
@@ -60,6 +65,72 @@ void *service_changePass(void *arg);
 void *service_newGame(void *arg);
 void *service_gamePlayingHistory(void *arg);
 void *service_signout(void *arg);
+
+void delay(int number_of_seconds)
+{
+    // Converting time into milli_seconds
+    int milli_seconds = 1000 * number_of_seconds;
+
+    // Storing start time
+    clock_t start_time = clock();
+
+    // looping till required time is not achieved
+    while (clock() < start_time + milli_seconds)
+        ;
+}
+
+int send2(int connfd, char* send_message)
+{
+    pthread_mutex_lock(&lock);
+
+    fd_set writefds;
+
+    int flag = 0;
+    int sendBytes;
+
+    do
+    {
+        FD_ZERO(&writefds);
+        FD_SET(connfd, &writefds);
+        maxfd = connfd;
+
+        //printf("Selecting...\n");
+        int askForSending = select(maxfd + 1, NULL, &writefds, NULL, NULL);
+
+//    if(askForSending != connfd)
+//    {
+//    continue;//sai vi askForSending khong phai so hieu
+//        //perror("\Error: ");
+//        // error occurred in select()
+//    }
+
+        if(!FD_ISSET(connfd, &writefds))
+        {
+            continue;
+        }
+        //printf("read to send\n");
+        flag = 1;
+
+        int message_size = strlen(send_message) + 5;
+        //puts(send_message);
+        //printf("%d\n",message_size);
+        sendBytes = send(connfd, send_message,  message_size, 0);
+
+        //check
+        int recvBytes;
+        char recvBuff[RECV_BUFF_SIZE + 1];
+        recvBytes = recv(connfd, recvBuff, sizeof(recvBuff), 0);
+        recvBuff[recvBytes] = '\0';
+        //puts(recvBuff);
+        if(strcmp(recvBuff, "RECEIVE_SUCCESS") != 0)
+            printf("ERROR: send_error\n");
+    }
+    while(flag == 0);
+
+    pthread_mutex_unlock(&lock);
+    return sendBytes;
+};
+
 
 
 // ROOM ------------------------------------------------------------
@@ -83,7 +154,7 @@ int roomNum = 0;
 room* roomList[MAX_ROOM];
 
 pthread_t room_thread_id[MAX_ROOM];
-pthread_mutex_t room_data_lock = PTHREAD_MUTEX_INITIALIZER;;
+pthread_mutex_t room_data_lock = PTHREAD_MUTEX_INITIALIZER;
 
 typedef struct
 {
@@ -119,7 +190,7 @@ void* newRoom(void* arg)
     connfd = actual_args->clientConnfd;
     free(arg);
 
-            // Have to stop select with this connfd because even receive in here, process in here but still selected by the main thread
+    // Have to stop select with this connfd because even receive in here, process in here but still selected by the main thread
     // meaning: now this connfd are belong to this thread
     int connfd_index;
 
@@ -148,7 +219,7 @@ void* newRoom(void* arg)
     printf("[%s:%d]: Max player: %d\n", inet_ntoa(cliaddr.sin_addr), ntohs(cliaddr.sin_port), playerNumPreSet);
 
 
-                wantSelect[connfd_index] = 1;
+    wantSelect[connfd_index] = 1;
 
 
 
@@ -199,7 +270,7 @@ void* newRoom(void* arg)
         {
 
 
-        // Have to use is own mutex_lock or have to init mutex_lock??????????????????????????
+            // Have to use is own mutex_lock or have to init mutex_lock??????????????????????????
             printf("Waiting for player\n");
             pthread_cond_wait(&(newRoom->enoughPlayer_cond), &(newRoom->room_lock));
 
@@ -242,7 +313,7 @@ void* playerEnterRoom (void* arg)
     free(arg);
 
 
-      // Have to stop select with this connfd because even receive in here, process in here but still selected by the main thread
+    // Have to stop select with this connfd because even receive in here, process in here but still selected by the main thread
     // meaning: now this connfd are belong to this thread
     int connfd_index;
 
@@ -257,41 +328,52 @@ void* playerEnterRoom (void* arg)
 
     int recvBytes;
     char recvBuff[RECV_BUFF_SIZE + 1];
-    char sendBuff[RECV_BUFF_SIZE + 1];
+    char sendBuff[SEND_BUFF_SIZE + 1];
 
     if(roomNum == 0)
     {
-        send(connfd, "NO_ROOM", sizeof("NO_ROOM"), 0);
+        send2(connfd, "NO_ROOM");
 
-            pthread_mutex_unlock(&room_data_lock);
-            wantSelect[connfd_index] = 1;
+        pthread_mutex_unlock(&room_data_lock);
+        wantSelect[connfd_index] = 1;
         return NULL;
     }
 
     int curRoomNum = roomNum;
 
+    int check;
     tostring(sendBuff, curRoomNum);
-    send(connfd, sendBuff, sizeof(sendBuff), 0);
+    send2(connfd, sendBuff);
 
     for(int i = 0; i < MAX_ROOM; i++)
     {
         if(roomList[i] != NULL)
         {
-            tostring(sendBuff, roomList[i]->roomID);
-            send(connfd, sendBuff, sizeof(sendBuff), 0);
+            char sendNum[5];
 
-            send(connfd, roomList[i]->roomName, sizeof(roomList[i]->roomName), 0);
+            tostring(sendNum, roomList[i]->roomID);
+            //printf("roomID: *%s*\n", sendNum);
+            send2(connfd, sendNum);
+//printf("Cheking0...!\n");
 
-            tostring(sendBuff, roomList[i]->playerNumPreSet);
-            //printf("***%s***\n", sendBuff);
-            send(connfd, sendBuff, sizeof(sendBuff), 0);
+            //printf("room name: *%s*\n", roomList[i]->roomName);
+            send2(connfd, roomList[i]->roomName);
+//printf("Cheking1...!\n");
 
-            tostring(sendBuff, roomList[i]->playerNum);
-            send(connfd, sendBuff, sizeof(sendBuff), 0);
+            tostring(sendNum, roomList[i]->playerNumPreSet);
+            //printf("room num preset: *%s*\n", sendNum);
+            send2(connfd, sendNum);
+//printf("Cheking2...!\n");
+
+            tostring(sendNum, roomList[i]->playerNum);
+            //printf("player num: *%s*\n", sendNum);
+            send2(connfd, sendNum);
+
+            //printf("Cheking3...!\n");
         }
     }
 
-    send(connfd, "PRINT_ROOM_END", sizeof("PRINT_ROOM_END"), 0);
+    send2(connfd, "PRINT_ROOM_END");
 
     recvBytes = recv(connfd, recvBuff, sizeof(recvBuff), 0);
     recvBuff[recvBytes] = '\0';
@@ -300,6 +382,7 @@ void* playerEnterRoom (void* arg)
 
     pthread_mutex_lock(&room_data_lock);
     printf("start entering...\n");
+
     int i;
     for(i = 0; i < MAX_ROOM; i++)
     {
@@ -313,7 +396,7 @@ void* playerEnterRoom (void* arg)
                     {
                         roomList[i]->player[j] = getAccountNodeByLoginedIP(inet_ntoa(cliaddr.sin_addr));
                         roomList[i]->playerNum++;
-                        send(connfd, "ROOM_ADDED", sizeof("ROOM_ADDED"), 0);
+                        send2(connfd, "ENTER_ROOM_SUCCESSFULY");
                         printRoom();
                         break;
                     };
@@ -321,23 +404,21 @@ void* playerEnterRoom (void* arg)
 
                 if (roomList[i]->playerNum == roomList[i]->playerNumPreSet)
                 {
-                printf("enough player!\n");
+                    printf("enough player!\n");
                     pthread_cond_signal(&(roomList[i]->enoughPlayer_cond));
                 }
             }
             else
             {
-            printf("Room full\n");
-                send(connfd, "ROOM_FULL", sizeof("ROOM_FULL"), 0);
+                printf("Room full\n");
+                send2(connfd, "ROOM_FULL");
             }
             break;
         }
     }
 
     if(i == MAX_ROOM)
-        send(connfd, "ROOM_DELETED", sizeof("ROOM_DELETED"), 0);
-
-
+        send2(connfd, "ROOM_NOT_FOUND");
 
     pthread_mutex_unlock(&room_data_lock);
     wantSelect[connfd_index] = 1;
@@ -347,7 +428,7 @@ void printRoom ()
 {
     printf("-----------------------------\n");
     printf("Room info\n\n");
-        printf("Room num: %d\n", roomNum);
+    printf("Room num: %d\n", roomNum);
     for(int i = 0; i < MAX_ROOM; i++)
     {
         if(roomList[i] != NULL)
@@ -388,7 +469,7 @@ int main(int argc, char *argv[])
     }
 
     int SERV_PORT;
-    int listenfd, connfd, recvBytes;
+    int listenfd, connfd, recvBytes, sendBytes;
     socklen_t clientSocketLen; // size of client socket address
     struct sockaddr_in servaddr, cliaddr; // address structure
     char recvBuff[RECV_BUFF_SIZE + 1];
@@ -514,7 +595,7 @@ int main(int argc, char *argv[])
 
         printf("\n#Start processing\n\n");
 
-                //after add to set, it mark as have something to read while actual not
+        //after add to set, it mark as have something to read while actual not
         connfd = -1;
 
         // NOTE: the listenfd or connfd are both descriptor
@@ -534,7 +615,10 @@ int main(int argc, char *argv[])
 
         if (FD_ISSET (listenfd, &readfds))
         {
-            if(clientNum >= MAX_CLIENT) continue;
+            if(clientNum >= MAX_CLIENT) {
+printf("Have reached max client!\n");
+continue;
+}
 
             connfd = accept(listenfd, (struct sockaddr*) &cliaddr, &clientSocketLen);
             // Accept a connection request -> return a File Descriptor (FD)
@@ -563,17 +647,17 @@ int main(int argc, char *argv[])
                 }
 
                 // confirm that connection are generated
-                send(connfd, "OK", sizeof("OK"), 0);
+                send2(connfd, "OK");
 
                 if(isLogedIn(inet_ntoa(cliaddr.sin_addr)) == LOGED_IN)
                 {
                     printf("%s alrealdy logined - user name: %s\n", inet_ntoa(cliaddr.sin_addr), getAccountNodeByLoginedIP(inet_ntoa(cliaddr.sin_addr))->userName);
-                    send(connfd, getAccountNodeByLoginedIP(inet_ntoa(cliaddr.sin_addr))->userName, sizeof(userNameType), 0);
+                    send2(connfd, getAccountNodeByLoginedIP(inet_ntoa(cliaddr.sin_addr))->userName);
                 }
                 else
                 {
-                    send(connfd, "NEED_LOGIN", sizeof("NEED_LOGIN"), 0);
-
+                    printf("IP not logined\n");
+                    send2(connfd, "NEED_LOGIN");
                 }
             }
         }
@@ -604,6 +688,7 @@ int main(int argc, char *argv[])
                         FD_CLR(clientConnfd[k], &readfds);
                         close(clientConnfd[k]);
                         clientConnfd[k] = -1;
+clientNum--;
                         perror("Nothing receive from client\n");
                     }
 
@@ -643,13 +728,15 @@ int main(int argc, char *argv[])
 
                     case 3:
                         printf ("%s\n", "Service 3: Sign in");
+                        wantSelect[k] = 0;
                         pthread_create(&(service_thread_id[freeThread_index]), NULL, &service_signin, (void*)args);
                         break;
 
                     case 4:
                         printf ("%s\n", "Service 4: Change password");
+
                         if(isLogedIn(inet_ntoa(cliaddr.sin_addr)) == LOGED_IN)
-                        {
+                        {wantSelect[k] = 0;
                             pthread_create(&(service_thread_id[freeThread_index]), NULL, &service_changePass, (void*)args);
                             printf("cheking...\n");
                         }
@@ -659,7 +746,7 @@ int main(int argc, char *argv[])
                     case 5:
                         printf ("%s\n", "Service 5: New room");
                         if(isLogedIn(inet_ntoa(cliaddr.sin_addr)) == LOGED_IN)
-                        {
+                        {wantSelect[k] = 0;
                             pthread_create(&(service_thread_id[freeThread_index]), NULL, &newRoom, (void*)args);
                         }
                         else printf("Not loged in\n");
@@ -667,8 +754,9 @@ int main(int argc, char *argv[])
 
                     case 6:
                         printf ("%s\n", "Service 6: Player enter room");
+
                         if(isLogedIn(inet_ntoa(cliaddr.sin_addr)) == LOGED_IN)
-                        {
+                        {wantSelect[k] = 0;
                             pthread_create(&(service_thread_id[freeThread_index]), NULL, &playerEnterRoom, (void*)args);
 
                         }
@@ -677,8 +765,9 @@ int main(int argc, char *argv[])
 
                     case 7:
                         printf ("%s\n", "Service 7: Sign out");
+
                         if(isLogedIn(inet_ntoa(cliaddr.sin_addr)) == LOGED_IN)
-                        {
+                        {wantSelect[k] = 0;
                             pthread_create(&(service_thread_id[freeThread_index]), NULL, &service_signout, (void*)args);
                             void *val;
                             pthread_join(service_thread_id[freeThread_index], &val);
@@ -753,12 +842,16 @@ void* service_signin(void *arg)
 
     if(isExistUserName(userName) == ACCOUNT_EXIST)
     {
-        send(connfd, "O", sizeof("O"), 0);
+        printf("Account exist\n");
+        send2(connfd, "O");
     }
     else
     {
-        printf("Account doesn't exit\n");
-        send(connfd, "X", sizeof("X"), 0);
+        printf("Account doesn't exist\n");
+        send2(connfd, "X");
+
+        wantSelect[connfd_index] = 1;
+        service_thread_index[thread_index] = -1;
         return NULL;
     }
 
@@ -770,7 +863,7 @@ void* service_signin(void *arg)
     int res = logIn (inet_ntoa(cliaddr.sin_addr), userName, password);
     char sres[10];
     tostring(sres, res);
-    send(connfd, sres, sizeof(sres), 0);
+    send2(connfd, sres);
 
     wantSelect[connfd_index] = 1;
     service_thread_index[thread_index] = -1;
@@ -828,8 +921,8 @@ void* service_changePass(void *arg)
         if(clientConnfd[i] != -1 && clientConnfd[i] != connfd && connfd_IP[i].s_addr == cliaddr.sin_addr.s_addr)
         {
             //printf("***%d\n", clientConnfd[i]);
-            send(clientConnfd[i], "NOTIFICATION", sizeof("NOTIFICAION")+1, 0);
-            send(clientConnfd[i], "Your password have been changed!", sizeof("Your password have been changed!"), 0);
+            send2(clientConnfd[i], "NOTIFICATION");
+            send2(clientConnfd[i], "Your password have been changed!");
         }
     }
 

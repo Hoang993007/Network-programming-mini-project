@@ -54,6 +54,7 @@
 		<Unit filename="Server/inc/question.h" />
 		<Unit filename="Server/inc/room.h" />
 		<Unit filename="Server/inc/services.h" />
+		<Unit filename="Server/inc/threadManager.h" />
 		<Unit filename="Server/server.c">
 			<Option compilerVar="CC" />
 		</Unit>
@@ -70,6 +71,9 @@
 			<Option compilerVar="CC" />
 		</Unit>
 		<Unit filename="Server/src/services.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="Server/src/threadManager.c">
 			<Option compilerVar="CC" />
 		</Unit>
 		<Unit filename="main.c">

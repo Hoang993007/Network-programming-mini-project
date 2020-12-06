@@ -34,14 +34,39 @@ socklen_t len;
 char recvBuff[RECV_BUFF_SIZE + 1];
 
 int maxfd;
+int maxfd_read;
 
 //set of socket descriptors
 fd_set writefds;
+fd_set readfds;
 
 void recv2 ()
 {
-    rcvBytes = recv(sockfd, recvBuff, sizeof(recvBuff), 0);
+    FD_ZERO(&readfds);
+
+    FD_SET(sockfd, &readfds);
+    maxfd = sockfd;
+    int askForSending;
+    //printf("Selecting...\n");
+    askForSending = select(maxfd + 1, &readfds, NULL, NULL, NULL);
+
+    if(askForSending == -1)
+    {
+        perror("\Error: ");
+        // error occurred in select()
+    }
+
+    rcvBytes = recv(sockfd, recvBuff, RECV_BUFF_SIZE + 1, 0);
+
+    //puts(recvBuff);
+    //printf("%d\n",rcvBytes);
     recvBuff[rcvBytes] = '\0';
+
+    if(rcvBytes > 0)
+    {
+        send(sockfd, "RECEIVE_SUCCESS", strlen("RECEIVE_SUCCESS") + 1, 0);
+    }
+    //printf("From server: %s\n",recvBuff);
 
     if(strcmp(recvBuff, "NOTIFICATION") == 0)
     {
@@ -54,21 +79,21 @@ void recv2 ()
 
 void tostring(char str[], int num)
 {
-  int i, rem, len = 0, n;
+    int i, rem, len = 0, n;
 
-  n = num;
-  while (n != 0)
+    n = num;
+    while (n != 0)
     {
-      len++;
-      n /= 10;
+        len++;
+        n /= 10;
     }
-  for (i = 0; i < len; i++)
+    for (i = 0; i < len; i++)
     {
-      rem = num % 10;
-      num = num / 10;
-      str[len - (i + 1)] = rem + '0';
+        rem = num % 10;
+        num = num / 10;
+        str[len - (i + 1)] = rem + '0';
     }
-  str[len] = '\0';
+    str[len] = '\0';
 }
 
 void play ()
@@ -96,7 +121,9 @@ void login ()
         recv2();
         if(strcmp(recvBuff, "X") == 0)
         {
+            printf("-----------------------------\n\n");
             printf("Wrong account\n");
+            printf("-----------------------------\n");
             continue;
         }
 
@@ -113,20 +140,24 @@ void login ()
 
         if(res == LOGIN_SUCCESS)
         {
-            printf("OK\n");
+            printf("Log in sucessfuly\n\n");
+            printf("-----------------------------\n");
             loginFlag = 1;
         }
         else if(res == ACCOUNT_JUST_BLOCKED)
         {
             printf("Account is blocked\n");
+            printf("-----------------------------\n");
         }
         else if(res == ACCOUNT_IDLE || res == ACCOUNT_BLOCKED)
         {
             printf("Account not ready\n");
+            printf("-----------------------------\n");
         }
         else  // wrong password
         {
-            printf("NOT OK\n");
+            printf("Wrong password\n");
+            printf("-----------------------------\n");
         }
     }
     while (loginFlag != 1);
@@ -134,6 +165,8 @@ void login ()
 
 int main(int argc, char *argv[])
 {
+    int recvBytes;
+
     SERV_PORT = atoi(argv[2]);
     strcpy(SERV_ADDR, argv[1]);
 
@@ -177,10 +210,12 @@ int main(int argc, char *argv[])
         printf("From server: %s\n", recvBuff);
 
         printf("Successfully connected to the server\n");
+        printf("-----------------------------\n\n");
 
         recv2();
         if(strcmp(recvBuff, "NEED_LOGIN") == 0)
         {
+            printf("You did not loged in yet! Please login before playing!\n*****----***\n\n");
             login ();
         }
         else
@@ -191,6 +226,8 @@ int main(int argc, char *argv[])
         int choice;
         do
         {
+            printf("\n\n-----------------------------\n");
+            printf("OPTION\n\n");
             printf("0. Change pass\n");
             printf("1. \n");
             printf("2. Join room\n");
@@ -198,6 +235,7 @@ int main(int argc, char *argv[])
             printf("Enter your choice: ");
 
             scanf("%d", &choice);
+            printf("-----------------------------\n");
 
             switch(choice)
             {
@@ -228,10 +266,8 @@ int main(int argc, char *argv[])
                 }
                 */
 
-                printf("Demand for changing password...\n");
-                printf("Receive encoded password...\n");
-                recv2();
-                puts(recvBuff);
+
+                // CHECK IF SUCCESS
 
                 /*
                   if((rcvBytes = recv(sockfd, recvBuff, sizeof(recvBuff), 0)) == 0) {
@@ -250,7 +286,7 @@ int main(int argc, char *argv[])
                 send(sockfd, service, sizeof(service), 0);
                 break;
             case 2:
-                printf("Enter room\n");
+                printf("Enter room\n\n");
                 strcpy(service, "6");
                 send(sockfd, service, sizeof(service), 0);
 
@@ -261,7 +297,9 @@ int main(int argc, char *argv[])
                     continue;
                 }
 
-                printf("Room num: %s\n", recvBuff);
+                printf("Room num: %s\n\n", recvBuff);
+                printf("=============\n\n");
+                printf("Room list:\n\n");
 
                 while(1)
                 {
@@ -272,14 +310,16 @@ int main(int argc, char *argv[])
                     recv2();
                     printf("Room name: %s\n", recvBuff);
                     recv2();
-                    printf("Num of player preset: %s---------\n", recvBuff);
+                    printf("Num of player preset: %s\n", recvBuff);
                     recv2();
-                    printf("Num of player: %s-------------------\n", recvBuff);
+                    printf("Num of player: %s\n", recvBuff);
+                    printf("\n");
                 }
 
                 int chosenRoom;
                 printf("Enter ID of room: ");
                 scanf("%d", &chosenRoom);
+                printf("-----------------------------\n\n\n");
                 getchar();
                 char chosenRoom_char[5];
 
@@ -288,12 +328,14 @@ int main(int argc, char *argv[])
 
                 recv2();
                 puts(recvBuff);
+
+                printf("Your are in room: What do you want (show oftion)");
                 break;
             case 3:
                 printf("New room\n");
                 // service 7: Sign out
                 strcpy(service, "5");
-                send(sockfd, service, sizeof(service), 0);
+                recvBytes = send(sockfd, service, sizeof(service), 0);
 
 
 
@@ -302,7 +344,7 @@ int main(int argc, char *argv[])
                 scanf("%s", roomName);
                 getchar();
 
-                send(sockfd, roomName, sizeof(roomName), 0);
+                recvBytes = send(sockfd, roomName, sizeof(roomName), 0);
 
                 int playerNumPreSet;
                 printf("playerNumPreSet: ");
@@ -310,8 +352,9 @@ int main(int argc, char *argv[])
 
                 char playerNumPreSet_char[2];
                 playerNumPreSet_char[0] = playerNumPreSet + '0';
+                playerNumPreSet_char[1] = '\0';
 
-                send(sockfd, playerNumPreSet_char, sizeof(playerNumPreSet_char), 0);
+                recvBytes = send(sockfd, playerNumPreSet_char, sizeof(playerNumPreSet_char), 0);
                 break;
             default:
                 break;
