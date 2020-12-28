@@ -5,7 +5,7 @@
 
 char ACTIVE_CODE[ACTIVE_CODE_LENGTH] = "LTM121216";
 
-char username_pass_filePath[255] = "./Server/data/userData/username_pass.txt";
+char username_pass_filePath[255] = "./data/userData/username_pass.txt";
 //"./Server/data/userData/username_pass.txt";
 
 accountNode* accountNode_front = NULL;
@@ -44,10 +44,8 @@ int addAccountNode (char* userName, char* password, accountStatus status) {
   newNode->status = status;
   newNode->wrongActiveCodeCount = 0;
   newNode->wrongPassCount = 0;
-  newNode->loginedIPNum = 0;
-  for(int i = 0; i < MAX_LOGIN_IP; i++) {
-    newNode->loginedIPMark[i] = 0;
-  }
+
+newNode->isLogined = 0;
 
   newNode->next = NULL;
 
@@ -71,24 +69,6 @@ accountNode* getAccountNodeByUserName (char* userName) {
       return getNode;
     }
   }
-
-  return NULL;
-}
-
-accountNode* getAccountNodeByLoginedIP (char* IP) {
-  accountNode* tmp = accountNode_front;
-    while(tmp != NULL)
-    {
-        accountNode* getNode = tmp;
-        tmp = tmp->next;
-        if(getNode->loginedIPNum > 0)
-        {
-            for(int i = 0; i < MAX_LOGIN_IP; i++)
-                if(getNode->loginedIP[i][0] != '\0')
-                    if(strcmp(getNode->loginedIP[i], IP) == 0)
-                        return getNode;
-                    }
-    }
 
   return NULL;
 }
@@ -201,24 +181,13 @@ void loadUsername_passData () {
   while((fgets(buf, sizeof(buf), username_pass_file)) != NULL) {
     line++;
 
-    int checkSpace = 0;
-    for(int i=0; i < strlen(buf); i++) {
-      if(buf[i] == ' ') checkSpace ++;
-    }
-
-    if(checkSpace != 2) {
-      printf ("Line %d: Invalid account information!", line);
-      printf("\n");
-      continue;
-    }
-
     char * userName;
     char * password;
     accountStatus status;
 
-    userName = strtok(buf, " ");
-    password = strtok(NULL, " ");
-    char * tmp = strtok(NULL, " ");
+    userName = strtok(buf, ";");
+    password = strtok(NULL, ";");
+    char * tmp = strtok(NULL, ";");
     tmp[strlen(tmp)-1] = '\0';
 
     if(strlen(tmp) > 1 || (tmp[0] > '2' || tmp[0] < '0')) {
@@ -248,7 +217,7 @@ int storeUsername_passData () {
   accountNode* tmp = accountNode_front;
 
   while(tmp != NULL) {
-    fprintf(username_pass_file,"%s %s %d\n", tmp->userName, tmp->password, tmp->status);
+    fprintf(username_pass_file,"%s;%s;%d\n", tmp->userName, tmp->password, tmp->status);
     tmp = tmp->next;
   }
 

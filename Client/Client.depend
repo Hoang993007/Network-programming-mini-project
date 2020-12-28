@@ -1,0 +1,24 @@
+# depslib dependency file v1.0
+1604731775 source:/home/nguyenminhhoang/Downloads/Mini-project/Client/src/errorCode.c
+	<stdio.h>
+
+1609122452 source:/home/nguyenminhhoang/Downloads/Mini-project/Client/src/client.c
+	<stdio.h>
+	<stdlib.h>
+	<string.h>
+	<math.h>
+	<signal.h>
+	<sys/types.h>
+	<sys/socket.h>
+	<netinet/in.h>
+	<unistd.h>
+	<arpa/inet.h>
+	<errno.h>
+	<sys/select.h>
+	<sys/time.h>
+	<pthread.h>
+	<time.h>
+	"./../inc/errorCode.h"
+
+1604740251 /home/nguyenminhhoang/Downloads/Mini-project/Client/inc/errorCode.h
+

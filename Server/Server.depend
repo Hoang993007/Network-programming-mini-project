@@ -1,0 +1,155 @@
+# depslib dependency file v1.0
+1605502516 source:/home/nguyenminhhoang/Downloads/Mini-project/Server/src/convertNumAndStr.c
+	<stdio.h>
+	<stdlib.h>
+	<string.h>
+	"../inc/convertNumAndStr.h"
+
+1605502442 /home/nguyenminhhoang/Downloads/Mini-project/Server/inc/convertNumAndStr.h
+	<stdio.h>
+	<string.h>
+	"errorCode.h"
+
+1607128341 /home/nguyenminhhoang/Downloads/Mini-project/Server/inc/errorCode.h
+
+1604731731 source:/home/nguyenminhhoang/Downloads/Mini-project/Server/src/errorCode.c
+	<stdio.h>
+
+1609122937 source:/home/nguyenminhhoang/Downloads/Mini-project/Server/src/accountSystem.c
+	<stdio.h>
+	<stdlib.h>
+	<string.h>
+	"../inc/accountSystem.h"
+
+1609062658 /home/nguyenminhhoang/Downloads/Mini-project/Server/inc/accountSystem.h
+	<stdio.h>
+	<stdlib.h>
+	<string.h>
+	<math.h>
+	<signal.h>
+	<sys/types.h>
+	<sys/socket.h>
+	<netinet/in.h>
+	<unistd.h>
+	<arpa/inet.h>
+	<errno.h>
+	<sys/select.h>
+	<sys/time.h>
+	<pthread.h>
+	<time.h>
+	"errorCode.h"
+
+1609125838 source:/home/nguyenminhhoang/Downloads/Mini-project/Server/src/network.c
+	<stdio.h>
+	<stdlib.h>
+	<string.h>
+	<math.h>
+	<signal.h>
+	<sys/types.h>
+	<sys/socket.h>
+	<netinet/in.h>
+	<unistd.h>
+	<arpa/inet.h>
+	<errno.h>
+	<sys/select.h>
+	<sys/time.h>
+	<pthread.h>
+	<time.h>
+	"../inc/services.h"
+	"../inc/accountSystem.h"
+	"../inc/network.h"
+
+1609064046 /home/nguyenminhhoang/Downloads/Mini-project/Server/inc/services.h
+	<stdio.h>
+	"accountSystem.h"
+	"errorCode.h"
+
+1609125474 /home/nguyenminhhoang/Downloads/Mini-project/Server/inc/network.h
+
+1609064623 source:/home/nguyenminhhoang/Downloads/Mini-project/Server/src/services.c
+	<stdio.h>
+	<string.h>
+	<stdlib.h>
+	"../inc/services.h"
+	"../inc/accountSystem.h"
+
+1609125920 source:/home/nguyenminhhoang/Downloads/Mini-project/Server/src/room.c
+	<stdio.h>
+	<stdlib.h>
+	<string.h>
+	<math.h>
+	<signal.h>
+	<sys/types.h>
+	<sys/socket.h>
+	<netinet/in.h>
+	<unistd.h>
+	<arpa/inet.h>
+	<errno.h>
+	<sys/select.h>
+	<sys/time.h>
+	<pthread.h>
+	<time.h>
+	"../inc/room.h"
+	"../inc/accountSystem.h"
+	"../inc/convertNumAndStr.h"
+	"../inc/network.h"
+	"../inc/server.h"
+
+1609076098 /home/nguyenminhhoang/Downloads/Mini-project/Server/inc/room.h
+	<stdio.h>
+	<stdlib.h>
+	<string.h>
+	<math.h>
+	<signal.h>
+	<sys/types.h>
+	<sys/socket.h>
+	<netinet/in.h>
+	<unistd.h>
+	<arpa/inet.h>
+	<errno.h>
+	<sys/select.h>
+	<sys/time.h>
+	<pthread.h>
+	"accountSystem.h"
+
+1609073110 /home/nguyenminhhoang/Downloads/Mini-project/Server/inc/server.h
+	<stdio.h>
+	<stdlib.h>
+	<string.h>
+	<math.h>
+	<signal.h>
+	<sys/types.h>
+	<sys/socket.h>
+	<netinet/in.h>
+	<unistd.h>
+	<arpa/inet.h>
+	<errno.h>
+	<sys/select.h>
+	<sys/time.h>
+	<pthread.h>
+	<time.h>
+
+1609077774 source:/home/nguyenminhhoang/Downloads/Mini-project/Server/src/server.c
+	<stdio.h>
+	<stdlib.h>
+	<string.h>
+	<math.h>
+	<signal.h>
+	<sys/types.h>
+	<sys/socket.h>
+	<netinet/in.h>
+	<unistd.h>
+	<arpa/inet.h>
+	<errno.h>
+	<sys/select.h>
+	<sys/time.h>
+	<pthread.h>
+	<time.h>
+	"./../inc/services.h"
+	"./../inc/accountSystem.h"
+	"./../inc/errorCode.h"
+	"./../inc/convertNumAndStr.h"
+	"./../inc/room.h"
+	"./../inc/network.h"
+	"./../inc/server.h"
+

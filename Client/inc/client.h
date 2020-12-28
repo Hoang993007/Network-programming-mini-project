@@ -1,5 +1,5 @@
-#ifndef __ERRORCODE_H__
-#define __ERRORCODE_H__
+#ifndef __CLIENT_H__
+#define __CLIENT_H__
 
 #define IO_ERROR 10
 #define IO_SUCCESS 11
@@ -24,5 +24,7 @@
 
 #define ACTIVE_SUCCESS 21
 #define ACTIVE_ERROR 22
+
+void roomChat(int roomID, int isHost);
 
 #endif

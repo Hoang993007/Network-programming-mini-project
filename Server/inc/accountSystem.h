@@ -2,6 +2,27 @@
 #define __ACCOUNTSYSTEM_H__
 
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <math.h>
+#include <signal.h>
+//
+#include <sys/types.h>
+#include <sys/socket.h>
+//
+#include <netinet/in.h>
+//
+#include <unistd.h>
+//
+#include <arpa/inet.h>
+#include <errno.h>
+//
+#include <sys/select.h>
+#include <sys/time.h>
+//
+#include <pthread.h>
+//
+#include <time.h>
 #include "errorCode.h"
 
 #define PRINT_LOGIN_INFO_DB 1 // for testing
@@ -34,9 +55,9 @@ typedef struct _accountNode {
   int wrongActiveCodeCount;
   int wrongPassCount;
 
-  char loginedIP[255][MAX_LOGIN_IP];
-  int loginedIPMark[MAX_LOGIN_IP];
-  int loginedIPNum;
+  int isLogined;
+  struct in_addr loginedClientIP;
+  int loginedClientConnfd;
 
   struct _accountNode* next;
 }accountNode;

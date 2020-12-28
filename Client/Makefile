@@ -12,7 +12,7 @@ BINDIR 	= bin
 _BIN	= client
 BIN	= $(addprefix $(BINDIR)/,$(_BIN))
 
-CFLAGS = -I$(INCLDIR)
+CFLAGS = -I$(INCLDIR) -pthread
 
 DEPS 	= $(wildcard $(INCLDIR)/*.h)
 
