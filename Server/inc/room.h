@@ -48,6 +48,9 @@ typedef struct _room
     int playerConnfd[MAX_ROOM_PLAYER - 1];
     int playerRealdy[MAX_ROOM_PLAYER - 1];
     int numOfRealdyPlayer;
+
+    fd_set readfds;
+    int fd[2];
 } room;
 
 void roomListInit();
@@ -58,5 +61,6 @@ void* roomChat (void* args);
 room* getRoomByID(int ID);
 void* roomPlay (void* args);
 void* quitRoom (void* args);
+void* deleteRoom (void* args);
 
 #endif

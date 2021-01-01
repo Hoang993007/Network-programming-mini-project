@@ -347,7 +347,6 @@ int main(int argc, char *argv[])
                         if(client_account[k]->isLogined == 1)
                         {
                             connfdNoServiceRunning[k] = 0;
-                            printf("sfsdf\n");
                             pthread_create(&(service_thread_id[freeThread_index]), NULL, &newRoom, (void*)args);
                         }
                         else printf("Not loged in\n");

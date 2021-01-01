@@ -70,6 +70,14 @@ strcat(type_message, message);
 printf("Message: %s\n", type_message);
     printf("Size: %lu\n", sizeof(type_message));
     sendBytes = send(connfd, type_message,  sizeof(type_message), 0);
+
+
+     char recvBuff[RECV_BUFF_SIZE];
+    int recvBytes = recv(connfd, recvBuff, sizeof(recvBuff), 0);
+    recvBuff[recvBytes] = '\0';
+    while(strcmp(recvBuff, "SEND_SUCCESS") != 0);
+
+
     printf("Send bytes: %d\n\n", sendBytes);
 
     return SEND_SUCCESS;

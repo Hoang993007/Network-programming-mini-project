@@ -8,6 +8,8 @@ void tostring(char str[], int num)
   int i, rem, len = 0, n;
 
   n = num;
+  if(n == 0) len = 1;
+  else
   while (n != 0)
     {
       len++;

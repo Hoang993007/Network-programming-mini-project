@@ -25,6 +25,6 @@
 #define ACTIVE_SUCCESS 21
 #define ACTIVE_ERROR 22
 
-void roomChat(int roomID, int isHost);
+void gameRoom(int roomID, int isHost);
 
 #endif

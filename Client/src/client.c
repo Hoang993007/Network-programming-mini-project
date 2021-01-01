@@ -98,7 +98,7 @@ void* recv_message(void *args)
 
         recvBuff[rcvBytes] = '\0';
 
-
+//printf("%s\n\n", recvBuff);
         char* receiveType = strtok(recvBuff, "-");
         char* message = strtok(NULL, ";");
 
@@ -116,8 +116,11 @@ void* recv_message(void *args)
         }
         else if(strcmp(receiveType, "CHAT_MESSAGE") == 0)
         {
-            printf("> %s", message);
+            printf("> %s\n", message);
         }
+
+         send(sockfd, "SEND_SUCCESS",  sizeof("SEND_SUCCESS"), 0);
+
     }
 }
 
@@ -145,6 +148,14 @@ void tostring(char str[], int num)
         str[len - (i + 1)] = rem + '0';
     }
     str[len] = '\0';
+}
+
+int checkCharacter(char* c)
+{
+    if (strlen(c) == 1 && ((c[0] >= 'a' && c[0] <= 'z') || (c[0] >= 'A' && c[0] <= 'Z')))
+        return 1;
+    else
+        return 0;
 }
 
 void signin ()
@@ -327,6 +338,7 @@ int main(int argc, char *argv[])
         printf("Enter your choice: ");
 
         scanf("%d", &loginOrSignin);
+        getchar();
         printf("-----------------------------\n");
         switch(loginOrSignin)
         {
@@ -360,6 +372,7 @@ int main(int argc, char *argv[])
         printf("Enter your choice: ");
 
         scanf("%d", &choice);
+        getchar();
         printf("-----------------------------\n");
 
         switch(choice)
@@ -396,6 +409,7 @@ int main(int argc, char *argv[])
             int playerNumPreSet;
             printf("playerNumPreSet: ");
             scanf("%d", &playerNumPreSet);
+            getchar();
 
             char playerNumPreSet_char[2];
             playerNumPreSet_char[0] = playerNumPreSet + '0';
@@ -406,7 +420,7 @@ int main(int argc, char *argv[])
             getMessage(MESSAGE, recvBuff);
             int recvBuffInt = atoi(recvBuff);
             printf("Room ID: %d\n", recvBuffInt);
-            roomChat(recvBuffInt, 1);
+            gameRoom(recvBuffInt, 1);
             break;
 
         case 2:
@@ -453,7 +467,7 @@ int main(int argc, char *argv[])
             getMessage(MESSAGE, recvBuff);
             puts(recvBuff);
 
-            roomChat(chosenRoom, 0);
+            gameRoom(chosenRoom, 0);
             break;
         case 3:
             // service 7: Sign out
@@ -472,8 +486,11 @@ int main(int argc, char *argv[])
     close(sockfd);
 }
 
-void roomChat(int roomID, int isHost)
+void gameRoom(int roomID, int isHost)
 {
+
+    char recvBuff[RECV_BUFF_SIZE];
+
     if(isHost == 1)
     {
         printf("-----------------------------\n");
@@ -481,31 +498,143 @@ void roomChat(int roomID, int isHost)
         printf("+) Invite:  $INVITE<tab><userName>\n");
         printf("+) Kick:    $KICK<tab><userName>\n");
         printf("+) Realdy:    $REALDY\n");
-        printf("+) Unrealdy:    $UNREALDY\n");
-        printf("+) Out room $QUIT\n"); // new host
+        printf("+) Out room: $QUIT<tab><userName>\n"); // new host
         printf("-----------------------------\n\n");
     }
 
     if(isHost == 0)
     {
         printf("-----------------------------\n");
-        printf("Your are in room\KEYWORD\n\n");
+        printf("Your are in room\nKEYWORD\n\n");
         printf("+) Invite:  $INVITE<tab><userName>\n");
         printf("+) Realdy:    $REALDY\n");
-        printf("+) Unrealdy:    $UNREALDY\n");
-        printf("+) Out room $QUIT\n"); // new host
+        printf("+) Out room: $QUIT\n"); // new host
         printf("-----------------------------\n\n");
     }
 
     int realdy = 0;
     char chatMessage[500];
-    while(getchar() != '\n');// xóa đi n còn dư, fgets sẽ tự đọc đên n là dừng
+
+    printf("Write something to chat...\n\n");
+
     do
     {
-        printf("> you:");
         fgets(chatMessage, 500, stdin);
+        chatMessage[strlen(chatMessage) - 1] = '\0';
+printf("> you: %s\n", chatMessage);
         send(sockfd, chatMessage, sizeof(chatMessage), 0);
         if(strcmp(chatMessage, "$REALDY") == 0) realdy = 1;
     }
     while(realdy == 0);
+
+    while(strcmp(recvMessage[1], "GAME_START") != 0);
+    getMessage(MESSAGE, recvBuff);
+
+    printf("\n\n---------------------------------------------\n");
+    printf("Game start!\n");
+    printf("---------------------------------------------\n\n");
+
+    char thongbao[MAX];
+    char choice[10];
+    char answer[MAX];
+    char request[MAX];
+    char crossWord[MAX];
+    char question[MAX];
+    char character[MAX];
+    int n;
+
+
+
+    for (;;)                                    // vòng lặp cho tới khi client quit
+    {
+         read(sockfd,thongbao,BUFFSIZE);        // đọc thông báo từ server, nếu hết câu hỏi sẽ nhận "exit"
+        thongbao[strlen(thongbao)] = '\0';      // và kết thúc chương trình
+        if(strcmp(thongbao,"exit") == 0) break;
+
+        read(sockfd, question, BUFFSIZE);       // đọc vào câu hỏi
+        question[strlen(question)] = '\0';
+       printf("                     câu hỏi  : %s\n\n", question);
+        read(sockfd, crossWord, BUFFSIZE);      // đọc vào các ô trống
+        crossWord[strlen(crossWord)] = '\0';
+        int lengthOfCrossWord = strlen(crossWord) / 2;    // số lượng các chữ cái có trong đáp án
+       printf("                     %d CHU CAI\n\n", lengthOfCrossWord);
+        printf("                     %s\n\n", crossWord);
+
+        while (1)                               // vòng lặp cho tới khi ô chữ được giải hoặc chọn trả lời toàn bộ câu hỏi
+        {
+            printf("\n\n1.Trả lời toàn bộ đáp án.\n\n2.Trả lời từng ô chữ.\n");
+            do
+            {
+                printf("\n Nhập lựa chọn:  ");
+                gets(choice);
+            } while (strlen(choice) > 1 || (choice[0] != '1' && choice[0] != '2'));
+
+            write(sockfd, choice, BUFFSIZE);       // gửi lựa chọn tới server
+
+            if (choice[0] == '1')                  // chọn trả lời toàn bộ câu hỏi
+            {
+                printf("\nnhập vào đáp án của bạn : ");
+                gets(answer);
+                write(sockfd, answer, BUFFSIZE);   // gửi đáp án tới server
+
+                read(sockfd, thongbao, BUFFSIZE);  // đọc thông báo từ server
+                thongbao[strlen(thongbao)] = '\0';
+                printf("%s\n\n", thongbao);
+                break;
+            }
+            else                                   // chọn trả lời từng chữ cái
+            {
+
+                //int ch = atoi(ch);
+
+                do
+                {
+
+                    printf("\nNhập vào một chữ cái : ");
+                    __fpurge(stdin);
+                    gets(character);
+                } while (checkCharacter(character) == 0);
+                character[strlen(character)] = '\0';
+
+                write(sockfd, character, BUFFSIZE);      // gửi kí tự vừa nhập đến server
+
+                bzero(thongbao, BUFFSIZE);
+                read(sockfd, thongbao, BUFFSIZE);        // đọc thông báo từ client( kí tự vừa nhập xuất hiện bn lần)
+                thongbao[strlen(thongbao)] = '\0';
+                printf("       %s\n\n", thongbao);
+
+                bzero(crossWord, sizeof(crossWord));
+                read(sockfd, crossWord, BUFFSIZE);       // cập nhật crossWord
+                crossWord[strlen(crossWord)] = '\0';
+                printf("                     %s\n\n", crossWord);
+
+                bzero(thongbao, sizeof(thongbao));               // Nhận thông báo từ server : ô chữ đã được giải chưa
+                read(sockfd, thongbao, BUFFSIZE);            // nếu đã được giải thì nhận giá trị "done" thì thoát khỏi vòng lăp
+                thongbao[strlen(thongbao)] = '\0';
+                if (strcmp(thongbao, "done") == 0)
+                {
+                    printf("Ô chữ đã được giải !\n\n\n\n");
+                    break;
+                }
+            }
+        } // while(..)
+
+        bzero(thongbao, sizeof(thongbao));
+        read(sockfd, thongbao, BUFFSIZE); // nhận thông báo từ server: có muốn tiếp tục chơi không
+        thongbao[strlen(thongbao)] = '\0';  // nếu có nhập vào "y" , nếu không nhập vào "n"
+        do
+        {
+
+            printf("%s\n\n", thongbao);
+            __fpurge(stdin);
+            gets(request);
+
+        } while (checkCharacter(request) == 0 || (checkCharacter(request) == 1 && request[0] != 'y' && request[0] != 'n'));
+        write(sockfd, request, BUFFSIZE);
+        if (request[0] == 'n')
+        {
+            printf("kết thúc chương trình\n");
+            break;
+        }
+
 }

@@ -51,6 +51,9 @@
 		<Unit filename="src/network.c">
 			<Option compilerVar="CC" />
 		</Unit>
+		<Unit filename="src/question.c">
+			<Option compilerVar="CC" />
+		</Unit>
 		<Unit filename="src/room.c">
 			<Option compilerVar="CC" />
 		</Unit>
