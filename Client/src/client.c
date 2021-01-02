@@ -29,6 +29,8 @@
 #define MAX_USERNAME_LENGTH 50
 #define MAX_PASS_LENGTH 20
 
+#define ROOM_QUEST_NUM 2
+
 typedef char userNameType[MAX_USERNAME_LENGTH] ;
 typedef char passwordType[MAX_PASS_LENGTH] ;
 
@@ -39,8 +41,8 @@ struct sockaddr_in servaddr;
 int SERV_PORT;
 char SERV_ADDR[255];
 
-char recvMessage[5][RECV_BUFF_SIZE];
-int messageReady[5];
+char recvMessage[10][RECV_BUFF_SIZE];
+int messageReady[10];
 // 0: notification - 1:...
 
 socklen_t len;
@@ -54,7 +56,9 @@ typedef enum
 {
     NOTIFICATION,
     MESSAGE,
-    CHAT_MESSAGE
+    CHAT_MESSAGE,
+    GAME_CONTROL_MESSAGE,
+    GAME_CONTROL_DATA
 } messageType;
 
 void* recv_message(void *args)
@@ -97,8 +101,8 @@ void* recv_message(void *args)
         }
 
         recvBuff[rcvBytes] = '\0';
+        //printf("%s\n\n", recvBuff);
 
-//printf("%s\n\n", recvBuff);
         char* receiveType = strtok(recvBuff, "-");
         char* message = strtok(NULL, ";");
 
@@ -106,7 +110,7 @@ void* recv_message(void *args)
 
         if(strcmp(receiveType, "NOTIFICATION") == 0)
         {
-            printf("Notification: %s\n", message);
+            printf("\nNotification: %s\n\n", message);
         }
         else if(strcmp(receiveType, "MESSAGE") == 0)
         {
@@ -118,8 +122,18 @@ void* recv_message(void *args)
         {
             printf("> %s\n", message);
         }
+        else if(strcmp(receiveType, "GAME_CONTROL_MESSAGE") == 0)
+        {
+            printf("\nGame notification:\n%s\n\n", message);
+        }
+        else if(strcmp(receiveType, "GAME_CONTROL_DATA") == 0)
+        {
+            while(messageReady[GAME_CONTROL_DATA] == 1);
+            strcpy(recvMessage[GAME_CONTROL_DATA], message);
+            messageReady[GAME_CONTROL_DATA] = 1;
+        }
 
-         send(sockfd, "SEND_SUCCESS",  sizeof("SEND_SUCCESS"), 0);
+        send(sockfd, "SEND_SUCCESS",  sizeof("SEND_SUCCESS"), 0);
 
     }
 }
@@ -128,6 +142,12 @@ void getMessage(messageType type, char* buff)
 {
     while(messageReady[type] == 0);
     strcpy(buff, recvMessage[type]);
+    messageReady[type] = 0;
+}
+
+void waitMessage(messageType type, char* buff)
+{
+    while(messageReady[type] == 0 && (strcmp(recvMessage[type], buff) != 0));
     messageReady[type] = 0;
 }
 
@@ -491,6 +511,8 @@ void gameRoom(int roomID, int isHost)
 
     char recvBuff[RECV_BUFF_SIZE];
 
+    int roomTerminate = 0;
+
     if(isHost == 1)
     {
         printf("-----------------------------\n");
@@ -512,129 +534,121 @@ void gameRoom(int roomID, int isHost)
         printf("-----------------------------\n\n");
     }
 
-    int realdy = 0;
-    char chatMessage[500];
-
-    printf("Write something to chat...\n\n");
-
     do
     {
-        fgets(chatMessage, 500, stdin);
-        chatMessage[strlen(chatMessage) - 1] = '\0';
-printf("> you: %s\n", chatMessage);
-        send(sockfd, chatMessage, sizeof(chatMessage), 0);
-        if(strcmp(chatMessage, "$REALDY") == 0) realdy = 1;
-    }
-    while(realdy == 0);
+        char chatMessage[500];
+        int realdy = 0;
+        printf("Write something to chat...\n\n");
 
-    while(strcmp(recvMessage[1], "GAME_START") != 0);
-    getMessage(MESSAGE, recvBuff);
-
-    printf("\n\n---------------------------------------------\n");
-    printf("Game start!\n");
-    printf("---------------------------------------------\n\n");
-
-    char thongbao[MAX];
-    char choice[10];
-    char answer[MAX];
-    char request[MAX];
-    char crossWord[MAX];
-    char question[MAX];
-    char character[MAX];
-    int n;
-
-
-
-    for (;;)                                    // vòng lặp cho tới khi client quit
-    {
-         read(sockfd,thongbao,BUFFSIZE);        // đọc thông báo từ server, nếu hết câu hỏi sẽ nhận "exit"
-        thongbao[strlen(thongbao)] = '\0';      // và kết thúc chương trình
-        if(strcmp(thongbao,"exit") == 0) break;
-
-        read(sockfd, question, BUFFSIZE);       // đọc vào câu hỏi
-        question[strlen(question)] = '\0';
-       printf("                     câu hỏi  : %s\n\n", question);
-        read(sockfd, crossWord, BUFFSIZE);      // đọc vào các ô trống
-        crossWord[strlen(crossWord)] = '\0';
-        int lengthOfCrossWord = strlen(crossWord) / 2;    // số lượng các chữ cái có trong đáp án
-       printf("                     %d CHU CAI\n\n", lengthOfCrossWord);
-        printf("                     %s\n\n", crossWord);
-
-        while (1)                               // vòng lặp cho tới khi ô chữ được giải hoặc chọn trả lời toàn bộ câu hỏi
-        {
-            printf("\n\n1.Trả lời toàn bộ đáp án.\n\n2.Trả lời từng ô chữ.\n");
-            do
-            {
-                printf("\n Nhập lựa chọn:  ");
-                gets(choice);
-            } while (strlen(choice) > 1 || (choice[0] != '1' && choice[0] != '2'));
-
-            write(sockfd, choice, BUFFSIZE);       // gửi lựa chọn tới server
-
-            if (choice[0] == '1')                  // chọn trả lời toàn bộ câu hỏi
-            {
-                printf("\nnhập vào đáp án của bạn : ");
-                gets(answer);
-                write(sockfd, answer, BUFFSIZE);   // gửi đáp án tới server
-
-                read(sockfd, thongbao, BUFFSIZE);  // đọc thông báo từ server
-                thongbao[strlen(thongbao)] = '\0';
-                printf("%s\n\n", thongbao);
-                break;
-            }
-            else                                   // chọn trả lời từng chữ cái
-            {
-
-                //int ch = atoi(ch);
-
-                do
-                {
-
-                    printf("\nNhập vào một chữ cái : ");
-                    __fpurge(stdin);
-                    gets(character);
-                } while (checkCharacter(character) == 0);
-                character[strlen(character)] = '\0';
-
-                write(sockfd, character, BUFFSIZE);      // gửi kí tự vừa nhập đến server
-
-                bzero(thongbao, BUFFSIZE);
-                read(sockfd, thongbao, BUFFSIZE);        // đọc thông báo từ client( kí tự vừa nhập xuất hiện bn lần)
-                thongbao[strlen(thongbao)] = '\0';
-                printf("       %s\n\n", thongbao);
-
-                bzero(crossWord, sizeof(crossWord));
-                read(sockfd, crossWord, BUFFSIZE);       // cập nhật crossWord
-                crossWord[strlen(crossWord)] = '\0';
-                printf("                     %s\n\n", crossWord);
-
-                bzero(thongbao, sizeof(thongbao));               // Nhận thông báo từ server : ô chữ đã được giải chưa
-                read(sockfd, thongbao, BUFFSIZE);            // nếu đã được giải thì nhận giá trị "done" thì thoát khỏi vòng lăp
-                thongbao[strlen(thongbao)] = '\0';
-                if (strcmp(thongbao, "done") == 0)
-                {
-                    printf("Ô chữ đã được giải !\n\n\n\n");
-                    break;
-                }
-            }
-        } // while(..)
-
-        bzero(thongbao, sizeof(thongbao));
-        read(sockfd, thongbao, BUFFSIZE); // nhận thông báo từ server: có muốn tiếp tục chơi không
-        thongbao[strlen(thongbao)] = '\0';  // nếu có nhập vào "y" , nếu không nhập vào "n"
         do
         {
-
-            printf("%s\n\n", thongbao);
-            __fpurge(stdin);
-            gets(request);
-
-        } while (checkCharacter(request) == 0 || (checkCharacter(request) == 1 && request[0] != 'y' && request[0] != 'n'));
-        write(sockfd, request, BUFFSIZE);
-        if (request[0] == 'n')
-        {
-            printf("kết thúc chương trình\n");
-            break;
+            fgets(chatMessage, 500, stdin);
+            chatMessage[strlen(chatMessage) - 1] = '\0';
+            printf("> you: %s\n", chatMessage);
+            send(sockfd, chatMessage, sizeof(chatMessage), 0);
+            if(strcmp(chatMessage, "$REALDY") == 0) realdy = 1;
         }
+        while(realdy == 0);
 
+        while(strcmp(recvMessage[1], "GAME_START") != 0);
+        getMessage(MESSAGE, recvBuff);
+
+        printf("\n\n---------------------------------------------\n");
+        printf("Game start!\n");
+        printf("---------------------------------------------\n\n");
+
+        int quesNum = 0;
+
+        do
+        {
+            getMessage(GAME_CONTROL_DATA, recvBuff);
+            quesNum++;
+
+            if(strcmp(recvBuff, "END_GAME") == 0)
+                break;
+
+            printf("Question %d: %s\n\n", quesNum, recvBuff);
+
+            getMessage(GAME_CONTROL_DATA, recvBuff);
+            int ansLen = atoi(recvBuff);
+            printf("Number of character of the answer: %d\n", ansLen);
+
+            while(strcmp(recvMessage[GAME_CONTROL_DATA], "QUES_SOLVED") != 0)
+            {
+                do
+                {
+                    if(messageReady[GAME_CONTROL_DATA] == 1 && strcmp(recvMessage[GAME_CONTROL_DATA], "YOUR_TURN") == 0)
+                    {
+                        getMessage(GAME_CONTROL_DATA, recvBuff);
+                        printf("It's your turn\n");
+
+                        // TODO: show the wheel's result
+
+                        char choice[100];
+                        printf("\n\n");
+                        printf("1. Solve the question\n");
+                        printf("2. Guess character\n");
+                        do
+                        {
+                            printf("Enter your choice: ");
+                            fgets(choice, 500, stdin);
+                            choice[strlen(choice) - 1] = '\0';
+                        }
+                        while(strlen(choice) != 1 || (choice[0] != '1' && choice[0] != '2'));
+
+                        char choiceInTurn[200];
+                        strcpy(choiceInTurn, choice);
+                        strcat(choiceInTurn, "-");
+
+                        char answerInTurn[20];
+
+                        if(choice[0] == '1')
+                        {
+                            printf("Enter your answer: ");
+                            fgets(answerInTurn, 500, stdin);
+                            answerInTurn[strlen(answerInTurn) - 1] = '\0';
+                        }
+
+                        if(choice[0] == '2')
+                        {
+                            do
+                            {
+                                printf("Enter character: ");
+                                fgets(answerInTurn, 500, stdin);
+                                answerInTurn[strlen(answerInTurn) - 1] = '\0';
+                            }
+                            while(strlen(answerInTurn) != 1);
+                        }
+
+                        strcat(choiceInTurn, answerInTurn);
+                        send(sockfd, choiceInTurn, sizeof(choiceInTurn), 0);
+
+                        while(messageReady[GAME_CONTROL_DATA] == 0 || (strcmp(recvMessage[GAME_CONTROL_DATA], "NEXT_ROUND") != 0
+                                && strcmp(recvMessage[GAME_CONTROL_DATA], "QUES_SOLVED") != 0));
+                    }
+
+                }
+                while(messageReady[GAME_CONTROL_DATA] == 0 || (strcmp(recvMessage[GAME_CONTROL_DATA], "NEXT_ROUND") != 0
+                        && strcmp(recvMessage[GAME_CONTROL_DATA], "QUES_SOLVED") != 0));
+
+
+                if(strcmp(recvMessage[GAME_CONTROL_DATA], "NEXT_ROUND") == 0)
+                {
+                    printf("Next round!\n\n");
+                    getMessage(GAME_CONTROL_DATA, recvBuff);
+                }
+            }
+            if(strcmp(recvMessage[GAME_CONTROL_DATA], "QUES_SOLVED") == 0)
+            {
+                printf("Question is solved!\n\n");
+                printf("---------------------------------------------------\n");
+            }
+            getMessage(GAME_CONTROL_DATA, recvBuff);// Read QUES_SOLVED
+
+        }
+        while(strcmp(recvMessage[GAME_CONTROL_DATA], "END_GAME") != 0);
+        printf("End game\n\n");
+        printf("---------------------------------------------------\n");
+    }
+    while(roomTerminate == 0);
 }

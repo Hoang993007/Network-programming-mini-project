@@ -26,6 +26,7 @@
 #include "../inc/convertNumAndStr.h"
 #include "../inc/network.h"
 #include "../inc/server.h"
+#include "../inc/question.h"
 
 #define RECV_BUFF_SIZE 4096
 
@@ -90,9 +91,9 @@ void* newRoom(void* args)
         pthread_cond_init(&(newRoom->playerReady_cond), NULL);
         pthread_mutex_init(&(newRoom->roomLock), NULL);
 
-        newRoom->roomHost = client_account[connfd_index];
-        newRoom->hostConnfd = clientConnfd[connfd_index];
-        newRoom->hostRealdy = 0;
+        newRoom->player[0] = client_account[connfd_index];
+        newRoom->playerConnfd[0] = clientConnfd[connfd_index];
+        newRoom->playerRealdy[0] = 0;
         newRoom->numOfRealdyPlayer = 0;
 
         int pipeRes = pipe(newRoom->fd);
@@ -309,200 +310,153 @@ void* roomChat (void* args)
     int max_readfd;
     fd_set readfds;
 
-    while(currentRoom->currentPlayerNum != currentRoom->playerNumPreSet
-            || currentRoom->hostRealdy == 0
-            || currentRoom->numOfRealdyPlayer != currentRoom->playerNumPreSet - 1)
+    do
     {
-        FD_ZERO(&(currentRoom->readfds));
-        FD_SET(currentRoom->hostConnfd, &(currentRoom->readfds));
-        max_readfd = currentRoom->hostConnfd;
-        for(int i = 0; i < currentRoom->playerNumPreSet - 1; i++)
+        while(currentRoom->currentPlayerNum != currentRoom->playerNumPreSet
+                || currentRoom->numOfRealdyPlayer != currentRoom->playerNumPreSet)
         {
-            if(currentRoom->player[i] != NULL)
-                FD_SET(currentRoom->playerConnfd[i], &(currentRoom->readfds));
-            if(currentRoom->playerConnfd[i] > max_readfd)
-                max_readfd = currentRoom->playerConnfd[i];
-        }
-        FD_SET(currentRoom->fd[0], &(currentRoom->readfds));
-        if(currentRoom->fd[0] > max_readfd)
-        {
-            max_readfd = currentRoom->fd[0]; // REALLY IMPORTANT
-        }
-
-        int askForRecv = select(max_readfd + 1, &(currentRoom->readfds), NULL, NULL, NULL);
-
-        if(askForRecv == -1)
-        {
-            perror("Error");
-            exit(0);
-        }
-
-        if(FD_ISSET(currentRoom->fd[0], &(currentRoom->readfds)))
-        {
-            recvBytes = read(currentRoom->fd[0], recvBuff, sizeof(recvBuff));
-            recvBuff[recvBytes] = '\0';
-            char* orderType = strtok(recvBuff, "-");
-
-            if(strcmp(orderType, "NEW_MEMBER") == 0)
+            FD_ZERO(&(currentRoom->readfds));
+            for(int i = 0; i < currentRoom->playerNumPreSet; i++)
             {
-                char* indexStr = strtok(NULL, "-");
-                int newMemberIndex = atoi(indexStr);
-                char newMemberMessage[100];
-                strcpy(newMemberMessage, "Room have a new member name ");
-                strcat(newMemberMessage, currentRoom->player[newMemberIndex]->userName);
-                send_message(currentRoom->hostConnfd, NOTIFICATION, newMemberMessage);
-                for(int i = 0; i < currentRoom->playerNumPreSet - 1; i++)
-                {
-                    if(currentRoom->player[i] != NULL && i != newMemberIndex)
-                        send_message(currentRoom->playerConnfd[i], NOTIFICATION, newMemberMessage);
-                }
-
+                if(currentRoom->player[i] != NULL)
+                    FD_SET(currentRoom->playerConnfd[i], &(currentRoom->readfds));
+                if(currentRoom->playerConnfd[i] > max_readfd)
+                    max_readfd = currentRoom->playerConnfd[i];
             }
-        }
-
-        if(FD_ISSET(currentRoom->hostConnfd, &(currentRoom->readfds)))
-        {
-            recvBytes = recv(currentRoom->hostConnfd, recvBuff, sizeof(recvBuff), 0);
-            recvBuff[recvBytes] = '\0';
-            if(recvBuff[0] != '$')
+            FD_SET(currentRoom->fd[0], &(currentRoom->readfds));
+            if(currentRoom->fd[0] > max_readfd)
             {
-                char clientName_message[500];
-                strcpy(clientName_message, currentRoom->roomHost->userName);
-                clientName_message[strlen(clientName_message) + 1] = '\0';
-                clientName_message[strlen(clientName_message)] = ':';
-                // nếu dể thằng duwois lên trước có nghĩa đã xóa đi '\0'sau strlen khong phai cai truoc do nua
-                strcat(clientName_message, recvBuff);
-
-                for(int i = 0; i < currentRoom->playerNumPreSet - 1; i++)
-                {
-                    if(currentRoom->player[i] != NULL)
-                        send_message(currentRoom->playerConnfd[i], CHAT_MESSAGE, clientName_message);
-                }
+                max_readfd = currentRoom->fd[0]; // REALLY IMPORTANT
             }
-            else
-            {
-                char* keyWord = strtok(recvBuff, "\t");
-                if(strcmp(keyWord, "$INVITE") == 0)
-                {
-                    char* userName = strtok(NULL, "\t");
-                    accountNode* invAccount = getAccountNodeByUserName(userName);
-                    if(invAccount->isLogined == 0)
-                    {
-                        send_message(currentRoom->hostConnfd, MESSAGE, "PLAYER_NOT_ONLINE_NOW");
-                    }
-                    else
-                    {
-                        char invMessage[100];
-                        strcmp(invMessage, "You have an invitation from ");
-                        strcat(invMessage, currentRoom->roomHost->userName);
-                        strcat(invMessage, " to enter room with ID is ");
-                        char roomIDStr[5];
-                        tostring(roomIDStr, currentRoom->roomID);
-                        strcat(invMessage, roomIDStr);
-                        send_message(invAccount->loginedClientConnfd, NOTIFICATION, invMessage);
-                    }
-                }
-                else if(strcmp(keyWord, "$KICK") == 0)
-                {
-                    char* userName = strtok(NULL, "\t");
-                    for(int i = 0; i < currentRoom->playerNumPreSet - 1; i++)
-                    {
-                        if(currentRoom->player[i] != NULL
-                                && strcmp(currentRoom->player[i]->userName, userName) == 0)
-                        {
-                            currentRoom->player[i] = NULL;
-                            currentRoom->currentPlayerNum--;
-                            send_message(currentRoom->playerConnfd[i], NOTIFICATION, "Host have kicked you out of room");
-                            currentRoom->playerConnfd[i] = -1;
-                            currentRoom->playerRealdy[i] = 0;
-                            send_message(currentRoom->hostConnfd, NOTIFICATION, "Kick successfuly");
 
-                        }
-                        if (i == currentRoom->playerNumPreSet - 2)
-                        {
-                            send_message(currentRoom->hostConnfd, NOTIFICATION, "Kick fail");
-                        }
+            int askForRecv = select(max_readfd + 1, &(currentRoom->readfds), NULL, NULL, NULL);
+
+            if(askForRecv == -1)
+            {
+                perror("Error");
+                exit(0);
+            }
+
+            if(FD_ISSET(currentRoom->fd[0], &(currentRoom->readfds)))
+            {
+                recvBytes = read(currentRoom->fd[0], recvBuff, sizeof(recvBuff));
+                recvBuff[recvBytes] = '\0';
+                char* orderType = strtok(recvBuff, "-");
+
+                if(strcmp(orderType, "NEW_MEMBER") == 0)
+                {
+                    char* indexStr = strtok(NULL, "-");
+                    int newMemberIndex = atoi(indexStr);
+                    char newMemberMessage[100];
+                    strcpy(newMemberMessage, "Room have a new member name ");
+                    strcat(newMemberMessage, currentRoom->player[newMemberIndex]->userName);
+                    for(int i = 0; i < currentRoom->playerNumPreSet; i++)
+                    {
+                        if(currentRoom->player[i] != NULL && i != newMemberIndex)
+                            send_message(currentRoom->playerConnfd[i], NOTIFICATION, newMemberMessage);
                     }
-                }
-                else if(strcmp(keyWord, "$REALDY") == 0)
-                {
-                    currentRoom->hostRealdy = 1;
-                    send_message(currentRoom->hostConnfd, NOTIFICATION, "You've hit realdy");
-                }
-                else if(strcmp(keyWord, "$QUIT") == 0)
-                {
-                    char* userName = strtok(NULL, "\t");
-                    send_message(currentRoom->hostConnfd, NOTIFICATION, "You've hit quit");
+
+                    printf("##############33 check");
+
                 }
             }
 
-        }
-
-
-        for(int i = 0; i < currentRoom->playerNumPreSet - 1; i++)
-        {
-            if(currentRoom->player[i] != NULL)
-                if(FD_ISSET(currentRoom->playerConnfd[i], &(currentRoom->readfds)))
-                {
-                    recvBytes = recv(currentRoom->playerConnfd[i], recvBuff, sizeof(recvBuff), 0);
-                    recvBuff[recvBytes] = '\0';
-                    if(recvBuff[0] != '$')
+            for(int i = 0; i < currentRoom->playerNumPreSet; i++)
+            {
+                if(currentRoom->player[i] != NULL)
+                    if(FD_ISSET(currentRoom->playerConnfd[i], &(currentRoom->readfds)))
                     {
-                        char clientName_message[500];
-                        strcpy(clientName_message, currentRoom->roomHost->userName);
-                        clientName_message[strlen(clientName_message) + 1] = '\0';
-                        clientName_message[strlen(clientName_message)] = ':';
-                        // nếu dể thằng duwois lên trước có nghĩa đã xóa đi '\0'sau strlen khong phai cai truoc do nua
-                        strcat(clientName_message, recvBuff);
+                        recvBytes = recv(currentRoom->playerConnfd[i], recvBuff, sizeof(recvBuff), 0);
+                        recvBuff[recvBytes] = '\0';
 
-                        send_message(currentRoom->hostConnfd, CHAT_MESSAGE, clientName_message);
-                        for(int j = 0; j < currentRoom->playerNumPreSet - 1; j++)
+                        if(recvBuff[0] != '$')
                         {
-                            if(j != i && currentRoom->player[j] != NULL)
-                                send_message(currentRoom->playerConnfd[j], CHAT_MESSAGE, clientName_message);
-                        }
-                    }
-                    else
-                    {
-                        char* keyWord = strtok(recvBuff, "\t");
-                        if(strcmp(keyWord, "$INVITE") == 0)
-                        {
-                            char* userName = strtok(NULL, "\t");
-                            accountNode* invAccount = getAccountNodeByUserName(userName);
-                            if(invAccount->isLogined == 0)
+                            char clientName_message[500];
+                            strcpy(clientName_message, currentRoom->player[i]->userName);
+                            clientName_message[strlen(clientName_message) + 1] = '\0';
+                            clientName_message[strlen(clientName_message)] = ':';
+                            // nếu dể thằng duwois lên trước có nghĩa đã xóa đi '\0'sau strlen khong phai cai truoc do nua
+                            strcat(clientName_message, recvBuff);
+
+                            for(int j = 0; j < currentRoom->playerNumPreSet; j++)
                             {
-                                send_message(currentRoom->playerConnfd[i], MESSAGE, "PLAYER_NOT_ONLINE_NOW");
-                            }
-                            else
-                            {
-                                char invMessage[100];
-                                strcmp(invMessage, "You have an invitation from ");
-                                strcat(invMessage, currentRoom->roomHost->userName);
-                                strcat(invMessage, " to enter room with ID is ");
-                                char roomIDStr[5];
-                                tostring(roomIDStr, currentRoom->roomID);
-                                strcat(invMessage, roomIDStr);
-                                send_message(invAccount->loginedClientConnfd, NOTIFICATION, invMessage);
+                                if(j != i && currentRoom->player[j] != NULL)
+                                    send_message(currentRoom->playerConnfd[j], CHAT_MESSAGE, clientName_message);
                             }
                         }
-                        else if(strcmp(keyWord, "$REALDY") == 0)
+                        else
                         {
-                            currentRoom->playerRealdy[i] = 1;
-                            currentRoom->numOfRealdyPlayer++;
-                            send_message(currentRoom->playerConnfd[i], NOTIFICATION, "You've hit realdy");
-                        }
-                        else if(strcmp(keyWord, "$QUIT") == 0)
-                        {
-                            char* userName = strtok(NULL, "\t");
-                            send_message(currentRoom->playerConnfd[i], NOTIFICATION, "You've hit quit");
+                            char* keyWord = strtok(recvBuff, "\t");
+                            if(strcmp(keyWord, "$INVITE") == 0)
+                            {
+                                char* userName = strtok(NULL, "\t");
+                                accountNode* invAccount = getAccountNodeByUserName(userName);
+                                if(invAccount->isLogined == 0)
+                                {
+                                    send_message(currentRoom->playerConnfd[i], MESSAGE, "PLAYER_NOT_ONLINE_NOW");
+                                }
+                                else
+                                {
+                                    char invMessage[100];
+                                    strcmp(invMessage, "You have an invitation from ");
+                                    strcat(invMessage, currentRoom->player[i]->userName);
+                                    strcat(invMessage, " to enter room with ID is ");
+                                    char roomIDStr[5];
+                                    tostring(roomIDStr, currentRoom->roomID);
+                                    strcat(invMessage, roomIDStr);
+                                    send_message(invAccount->loginedClientConnfd, NOTIFICATION, invMessage);
+                                }
+                            }
+                            else if(strcmp(keyWord, "$KICK") == 0)
+                            {
+                                if(i == 0)
+                                {
+                                    char* userName = strtok(NULL, "\t");
+                                    for(int i = 0; i < currentRoom->playerNumPreSet - 1; i++)
+                                    {
+                                        if(currentRoom->player[i] != NULL
+                                                && strcmp(currentRoom->player[i]->userName, userName) == 0)
+                                        {
+                                            currentRoom->player[i] = NULL;
+                                            currentRoom->currentPlayerNum--;
+                                            send_message(currentRoom->playerConnfd[i], NOTIFICATION, "Host have kicked you out of room");
+                                            currentRoom->playerConnfd[i] = -1;
+                                            currentRoom->playerRealdy[i] = 0;
+                                            send_message(currentRoom->playerConnfd[0], NOTIFICATION, "Kick successfuly");
+
+                                        }
+                                        if (i == currentRoom->playerNumPreSet - 2)
+                                        {
+                                            send_message(currentRoom->playerConnfd[0], NOTIFICATION, "Kick fail");
+                                        }
+                                    }
+                                }
+                            }
+                            else if(strcmp(keyWord, "$REALDY") == 0)
+                            {
+                                currentRoom->playerRealdy[i] = 1;
+                                currentRoom->numOfRealdyPlayer++;
+                                send_message(currentRoom->playerConnfd[i], NOTIFICATION, "You've hit realdy");
+                            }
+                            else if(strcmp(keyWord, "$QUIT") == 0)
+                            {
+                                char* userName = strtok(NULL, "\t");
+                                send_message(currentRoom->playerConnfd[i], NOTIFICATION, "You've hit quit");
+                            }
                         }
                     }
-                }
+            }
         }
+        roomPlay (args);
+
+        // Un realdy everyone
+        for(int j = 0; j < currentRoom->playerNumPreSet; j++)
+        {
+            currentRoom->playerRealdy[j] = 0;
+        }
+        currentRoom->numOfRealdyPlayer = 0;
     }
-
-
-    roomPlay (args);
+    while(1);
 }
 
 void* roomPlay (void* args)
@@ -518,39 +472,190 @@ void* roomPlay (void* args)
     char recvBuff[RECV_BUFF_SIZE + 1];
     char sendBuff[SEND_BUFF_SIZE + 1];
 
-    printf("Room ID: %d\n", currentRoom->roomID);
-    printf("Room thread ID: %ld\n", currentRoom->room_thread_id);
-    printf("Room name: %s\n", currentRoom->roomName);
-    printf("Num of player preset: %d\n", currentRoom->playerNumPreSet);
-    printf("Num of player: %d\n", currentRoom->currentPlayerNum);
-
-    for(int j = 0; j < currentRoom->playerNumPreSet - 1; j++)
-    {
-        if(currentRoom->player[j] != NULL)
-        {
-            printf("Player name: %s\n", currentRoom->player[j]->userName);
-        }
-    }
-
     int recvBytes;
     int max_readfd;
     fd_set readfds;
 
-        send_message(currentRoom->hostConnfd, MESSAGE, "GAME_START");
-                        for(int j = 0; j < currentRoom->playerNumPreSet - 1; j++)
-                        {
-                                send_message(currentRoom->playerConnfd[j], MESSAGE, "GAME_START");
-                        }
+    for(int j = 0; j < currentRoom->playerNumPreSet; j++)
+    {
+        send_message(currentRoom->playerConnfd[j], MESSAGE, "GAME_START");
+    }
+
+    for(int j = 0; j < currentRoom->playerNumPreSet; j++)
+    {
+        currentRoom->playerPoint[j] = 0;
+    }
 
     printf("\n\n---------------------------------------------\n");
     printf("Game start!\n");
     printf("---------------------------------------------\n\n");
 
+    int avoidID[ROOM_QUEST_NUM];
+    for(int i = 0; i < ROOM_QUEST_NUM; i++)
+    {
+        avoidID[i] =  -1;
+    }
+
+    // TODO: u xinh xem thang nao di truoc
+    accountNode* inTurn;
+    //presum that the host go first
+    inTurn = currentRoom->player[0];
+    send_message(inTurn->loginedClientConnfd, GAME_CONTROL_MESSAGE, "You go first\n");
+
+    int numQuesPass = 0;
+    char curQuesAns[ANS_MAXLEN];
+    int ques_solved;
+
+    while(numQuesPass != ROOM_QUEST_NUM)
+    {
+        ques_ansNode* cur_ques_ans = getRandomQues_ans(avoidID);
+        for(int i = 0; i < ROOM_QUEST_NUM; i++)
+        {
+            if(avoidID[i] ==  -1)
+            {
+                avoidID[i] = cur_ques_ans->id;
+                break;
+            }
+        }
+        ques_solved = 0;
+
+        for(int i = 0; i <= cur_ques_ans->ansLen; i++)
+        {
+            curQuesAns[i] = '_';
+            if(i == cur_ques_ans->ansLen)curQuesAns[i] = '\0';
+        }
 
 
+        char ansLenStr[5];
+        tostring(ansLenStr, cur_ques_ans->ansLen);
 
+        char curAns[100];
+        strcpy(curAns, "Current answer: ");
+        strcat(curAns, curQuesAns);
 
+        for(int j = 0; j < currentRoom->playerNumPreSet; j++)
+        {
+            send_message(currentRoom->playerConnfd[j], GAME_CONTROL_DATA, cur_ques_ans->ques);
+            send_message(currentRoom->playerConnfd[j], GAME_CONTROL_DATA, ansLenStr);
+        }
 
+        while(ques_solved != 1)
+        {
+            //TODO: roll the wheel to start new round
+
+            int roundEnd = 0;
+            do
+            {
+                send_message(inTurn->loginedClientConnfd, GAME_CONTROL_DATA, "YOUR_TURN");
+                recvBytes = recv(inTurn->loginedClientConnfd, recvBuff, sizeof(recvBuff), 0);
+                recvBuff[recvBytes] = '\0';
+                char inTurnPlayerAns[200];
+                strcat(inTurnPlayerAns, inTurn->userName);
+                char* stringCut;
+                stringCut = strtok(recvBuff, "-");
+                if(stringCut[0] == '1')
+                {
+                    char playerAnswer[20];
+                    stringCut = strtok(NULL, "-");
+                    strcpy(playerAnswer, stringCut);
+
+                    strcat(inTurnPlayerAns, " chose to solve the question\nThe answer they gave is: ");
+                    strcat(inTurnPlayerAns, playerAnswer);
+                    // guri cho tat car tru thang nay
+
+                    if(strcmp(playerAnswer, cur_ques_ans->ans) == 0)
+                    {
+                        send_message(inTurn->loginedClientConnfd, GAME_CONTROL_MESSAGE, "Congratulation!");
+                        ques_solved = 1;
+
+                        //TODO: Tinh diem cho nguoi choi
+                        roundEnd = 1;
+                        continue;
+                    }
+
+                    //TODO: luot thang tiep theo
+
+                }
+                else if(stringCut[0] == '2')
+                {
+                    char character[2];
+                    stringCut = strtok(NULL, "-");
+                    strcpy(character, stringCut);
+
+                    int numOfChar = 0;
+                    int checkIfGuessed = 0;
+                    for(int i = 0; i < cur_ques_ans->ansLen; i++)
+                    {
+                        if(curQuesAns[i] == character[0])
+                        {
+                            checkIfGuessed = 1;
+                            break;
+                        }
+                    }
+                    if(checkIfGuessed == 1)
+                    {
+                        send_message(inTurn->loginedClientConnfd, GAME_CONTROL_MESSAGE, "You've guessed the same character which is guessed before");
+                    }
+                    else
+                    {
+                        for(int i = 0; i < cur_ques_ans->ansLen; i++)
+                        {
+                            if(cur_ques_ans->ans[i] == character[0])
+                            {
+                                curQuesAns[i] = character[0];
+                                numOfChar++;
+                            }
+                        }
+
+                        if(numOfChar == 0)
+                        {
+                            send_message(inTurn->loginedClientConnfd, GAME_CONTROL_MESSAGE, "Try again later");
+                        }
+                        else
+                        {
+                            char guessCharRes[100];
+                            send_message(inTurn->loginedClientConnfd, GAME_CONTROL_MESSAGE, "Congratulation!");
+                            char numOfCharStr[5];
+                            tostring(numOfCharStr, numOfChar);
+                            strcpy(guessCharRes, "We have ");
+                            strcat(guessCharRes, numOfCharStr);
+                            strcat(guessCharRes, " character");
+                            send_message(inTurn->loginedClientConnfd, GAME_CONTROL_MESSAGE, guessCharRes);
+                            // TODO: tinh diem cho nguoi choi
+
+                            roundEnd = 1;
+                        }
+                    }
+
+                    if(roundEnd == 0)  //round not end => next player's turn
+                    {
+                    }
+                }
+            }
+            while(roundEnd == 0);
+            if(ques_solved != 1)
+            {
+                for(int j = 0; j < currentRoom->playerNumPreSet; j++)
+                {
+                    send_message(currentRoom->playerConnfd[j], GAME_CONTROL_MESSAGE, curQuesAns);
+                    send_message(currentRoom->playerConnfd[j], GAME_CONTROL_DATA, "NEXT_ROUND");
+                }
+            }
+        }
+        numQuesPass++;
+
+        for(int j = 0; j < currentRoom->playerNumPreSet; j++)
+        {
+            send_message(currentRoom->playerConnfd[j], GAME_CONTROL_DATA, "QUES_SOLVED");
+        }
+
+        //TODO: thong bao diem cua nguoi choi
+    }
+
+    for(int j = 0; j < currentRoom->playerNumPreSet; j++)
+    {
+        send_message(currentRoom->playerConnfd[j], GAME_CONTROL_DATA, "END_GAME");
+    }
 
 }
 
@@ -558,7 +663,8 @@ void* quitRoom (void* args)
 {
 }
 
-void* deleteRoom (void* args) {
+void* deleteRoom (void* args)
+{
 }
 
 void printRoom ()
@@ -575,8 +681,8 @@ void printRoom ()
             printf("Room name: %s\n", roomList[i]->roomName);
             printf("Num of player preset: %d\n", roomList[i]->playerNumPreSet);
             printf("Num of player: %d\n", roomList[i]->currentPlayerNum);
-            printf("Host name: %s\n", roomList[i]->roomHost->userName);
-            for(int j = 0; j < roomList[i]->playerNumPreSet - 1; j++)
+            printf("Host name: %s\n", roomList[i]->player[0]->userName);
+            for(int j = 1; j < roomList[i]->playerNumPreSet; j++)
             {
                 if(roomList[i]->player[j] != NULL)
                 {

@@ -1,8 +1,48 @@
-kết nối 2 máy chứ ko phải trên cùng 1 máy nữa
+Ít nhất phải có 2 người, tối đa 4 người
+Nếu đã có đủ 4 nguwoif thì bắt đầu luôn
+(Kiểm tra trong client_... xem đã có đủ cả 4 kết nối chưa)
 
-gửi nhiều message 1 lúc
+Sau khi ngawts kết nối với 1 thằng thì phải xóa thawgf đó ra array của client descriptor, sau đó sắp xếp lại array này
 
 
-vẽ ddf hình
+Có lịch sử trận đấu, ghi ra một file riêng
 
-slide có số
+Có thể dùng u xình để xem thằng nào được phép đi trước
+
+Hai thằng cùng hoạt độngt hì dùng tới fork
+CÒn nếu hai thằng lần lượt được hỏi thì chỉ dùng select là đủ
+
+
+Khi một thread kết thúc, xóa id của nó trong mảng
+
+
+
+
+Khi nào thì cần đóng file descriptor của client?
+Còn phải cho phép nó đăng nhập lại một làn nữa cơ mà
+
+
+
+Thiết lập các mutex
+
+
+Mỗi room là một thread, khi mà ko còn người thì hủy room
+có chế độ out ra khỏi room
+
+
+
+Trong thời gian quasd lâu mà khoog nhận được hồi đaps => ngắt kết nối + xóa đi kêts nối đó trong danh sách chờ
+
+nhớ là mảng chư thỉnh thoảng nó tự ghi vào dù mình ko alfm gì đến nó. kHông thể tin vào đó được
+
+
+truwowngf howpj gửi cả một loạt thông báo thì sao?????
+
+
+
+
+
+
+
+
+trường hợ xung đột: gửi gứm fd cho 1 thread rồi thì sẽ xóa trong connect clinet fd, khi đó thằng khác muốn truy cập vào thì lại ko được

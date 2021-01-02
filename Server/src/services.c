@@ -11,6 +11,7 @@ int logIn (struct in_addr* IP, int connfd, userNameType userName, passwordType p
     int res;
 
     accountNode* logInAccount = accessToAccount (userName, password, &res);
+
     // TEST:
     // printf("Res code: %d\n", res);
     if(logInAccount == NULL)
@@ -19,9 +20,10 @@ int logIn (struct in_addr* IP, int connfd, userNameType userName, passwordType p
         return res;
     }
 
-    logInAccount->isLogined = 1;
-    logInAccount->loginedClientConnfd = connfd;
     memcpy(&(logInAccount->loginedClientIP), IP, sizeof(IP)+1);
+
+        logInAccount->isLogined = 1;
+    logInAccount->loginedClientConnfd = connfd;
 
     printf("Hello %s\n", logInAccount->userName);
 
@@ -63,6 +65,7 @@ void printLogedInAccount()
         {
             printf ("UserName: %s\n", getNode->userName);
             printf ("\t%s\n", inet_ntoa(getNode->loginedClientIP));
+            printf ("\tConnfd: %d\n", getNode->loginedClientConnfd);
         }
     }
 

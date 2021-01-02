@@ -56,23 +56,34 @@ int send_message(int connfd, messageType type, char* message)
     printf("Message type: %d\n", type);
     char type_message[500];
 
-    if(type == NOTIFICATION) {
-    strcpy(type_message, "NOTIFICATION-");
+    if(type == NOTIFICATION)
+    {
+        strcpy(type_message, "NOTIFICATION-");
     }
-    if(type == MESSAGE) {
-    strcpy(type_message, "MESSAGE-");
+    else if(type == MESSAGE)
+    {
+        strcpy(type_message, "MESSAGE-");
     }
-    if(type == CHAT_MESSAGE) {
-    strcpy(type_message, "CHAT_MESSAGE-");
+    else if(type == CHAT_MESSAGE)
+    {
+        strcpy(type_message, "CHAT_MESSAGE-");
+    }
+    else if(type == GAME_CONTROL_MESSAGE)
+    {
+        strcpy(type_message, "GAME_CONTROL_MESSAGE-");
+    }
+    else if(type == GAME_CONTROL_DATA)
+    {
+        strcpy(type_message, "GAME_CONTROL_DATA-");
     }
 
-strcat(type_message, message);
-printf("Message: %s\n", type_message);
+    strcat(type_message, message);
+    printf("Message: %s\n", type_message);
     printf("Size: %lu\n", sizeof(type_message));
     sendBytes = send(connfd, type_message,  sizeof(type_message), 0);
 
 
-     char recvBuff[RECV_BUFF_SIZE];
+    char recvBuff[RECV_BUFF_SIZE];
     int recvBytes = recv(connfd, recvBuff, sizeof(recvBuff), 0);
     recvBuff[recvBytes] = '\0';
     while(strcmp(recvBuff, "SEND_SUCCESS") != 0);

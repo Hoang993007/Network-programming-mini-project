@@ -29,6 +29,7 @@
 #include "./../inc/room.h"
 #include "./../inc/network.h"
 #include "./../inc/server.h"
+#include "./../inc/question.h"
 
 pthread_mutex_t user_passwordFileLock;
 
@@ -51,6 +52,7 @@ int max_readfd;
 int main(int argc, char *argv[])
 {
     loadUsername_passData();
+    loadQues_ansData();
 
     printf("Server's data is now ready!\n\n");
 
@@ -392,6 +394,7 @@ int main(int argc, char *argv[])
     }
 
     freeAccountNode();
+    freeQues_ansNode();
 
     return 0;
 }

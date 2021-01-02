@@ -26,6 +26,7 @@
 #define MAX_ROOM 5
 #define MAX_ROOM_PLAYER 5
 #define ROOM_NAME_MAX_LENGTH 20
+#define ROOM_QUEST_NUM 1
 
 // ROOM ------------------------------------------------------------
 typedef struct _room
@@ -40,13 +41,11 @@ typedef struct _room
     int playerNumPreSet;
     int currentPlayerNum;
 
-    accountNode* roomHost;
-    int hostConnfd;
-    int hostRealdy;
-
-    accountNode* player[MAX_ROOM_PLAYER - 1];
-    int playerConnfd[MAX_ROOM_PLAYER - 1];
-    int playerRealdy[MAX_ROOM_PLAYER - 1];
+    //The first player is roomhost
+    accountNode* player[MAX_ROOM_PLAYER];
+    int playerConnfd[MAX_ROOM_PLAYER];
+    int playerRealdy[MAX_ROOM_PLAYER];
+    int playerPoint[MAX_ROOM_PLAYER];
     int numOfRealdyPlayer;
 
     fd_set readfds;

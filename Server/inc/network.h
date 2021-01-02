@@ -8,7 +8,9 @@ typedef enum
 {
     NOTIFICATION,
     MESSAGE,
-    CHAT_MESSAGE
+    CHAT_MESSAGE,
+    GAME_CONTROL_MESSAGE,
+    GAME_CONTROL_DATA
 } messageType;
 
 int send_message(int connfd, messageType type, char* message);
