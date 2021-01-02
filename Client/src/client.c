@@ -344,7 +344,7 @@ int main(int argc, char *argv[])
     printf("Successfully connected to the server\n");
     printf("-----------------------------\n\n");
 
-    send(sockfd, "hust;123", sizeof("hust;123"), 0);
+    send(sockfd, "hust;d123", sizeof("hust;123"), 0);
 
     getMessage(MESSAGE, recvBuff);
     if(strcmp(recvBuff, "NEED_LOGIN") == 0)

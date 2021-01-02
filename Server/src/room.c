@@ -52,12 +52,9 @@ void* newRoom(void* args)
     pthread_detach(pthread_self());
 
     int connfd_index;
-
     user_thread_args *actual_args = args;
     connfd_index = actual_args->clientConnfd_index;
     free(args);
-
-
     int recvBytes;
     char recvBuff[RECV_BUFF_SIZE];
 
@@ -497,10 +494,14 @@ void* roomPlay (void* args)
     }
 
     // TODO: u xinh xem thang nao di truoc
-    accountNode* inTurn;
+    int inTurnPlayer;
+
     //presum that the host go first
-    inTurn = currentRoom->player[0];
-    send_message(inTurn->loginedClientConnfd, GAME_CONTROL_MESSAGE, "You go first\n");
+
+    inTurnPlayer = 0;
+
+
+    send_message(currentRoom->player[inTurnPlayer]->loginedClientConnfd, GAME_CONTROL_MESSAGE, "You go first\n");
 
     int numQuesPass = 0;
     char curQuesAns[ANS_MAXLEN];
@@ -544,13 +545,14 @@ void* roomPlay (void* args)
             //TODO: roll the wheel to start new round
 
             int roundEnd = 0;
+            int startRoundPlayer = inTurnPlayer;
             do
             {
-                send_message(inTurn->loginedClientConnfd, GAME_CONTROL_DATA, "YOUR_TURN");
-                recvBytes = recv(inTurn->loginedClientConnfd, recvBuff, sizeof(recvBuff), 0);
+                send_message(currentRoom->player[inTurnPlayer]->loginedClientConnfd, GAME_CONTROL_DATA, "YOUR_TURN");
+                recvBytes = recv(currentRoom->player[inTurnPlayer]->loginedClientConnfd, recvBuff, sizeof(recvBuff), 0);
                 recvBuff[recvBytes] = '\0';
                 char inTurnPlayerAns[200];
-                strcat(inTurnPlayerAns, inTurn->userName);
+                strcat(inTurnPlayerAns, currentRoom->player[inTurnPlayer]->userName);
                 char* stringCut;
                 stringCut = strtok(recvBuff, "-");
                 if(stringCut[0] == '1')
@@ -565,16 +567,16 @@ void* roomPlay (void* args)
 
                     if(strcmp(playerAnswer, cur_ques_ans->ans) == 0)
                     {
-                        send_message(inTurn->loginedClientConnfd, GAME_CONTROL_MESSAGE, "Congratulation!");
+                        send_message(currentRoom->player[inTurnPlayer]->loginedClientConnfd, GAME_CONTROL_MESSAGE, "Congratulation!");
                         ques_solved = 1;
 
                         //TODO: Tinh diem cho nguoi choi
                         roundEnd = 1;
                         continue;
                     }
-
-                    //TODO: luot thang tiep theo
-
+                    else {
+                    send_message(currentRoom->player[inTurnPlayer]->loginedClientConnfd, GAME_CONTROL_MESSAGE, "Wrong!");
+                    }
                 }
                 else if(stringCut[0] == '2')
                 {
@@ -594,7 +596,7 @@ void* roomPlay (void* args)
                     }
                     if(checkIfGuessed == 1)
                     {
-                        send_message(inTurn->loginedClientConnfd, GAME_CONTROL_MESSAGE, "You've guessed the same character which is guessed before");
+                        send_message(currentRoom->player[inTurnPlayer]->loginedClientConnfd, GAME_CONTROL_MESSAGE, "You've guessed the same character which is guessed before");
                     }
                     else
                     {
@@ -609,26 +611,32 @@ void* roomPlay (void* args)
 
                         if(numOfChar == 0)
                         {
-                            send_message(inTurn->loginedClientConnfd, GAME_CONTROL_MESSAGE, "Try again later");
+                            send_message(currentRoom->player[inTurnPlayer]->loginedClientConnfd, GAME_CONTROL_MESSAGE, "Try again later");
                         }
                         else
                         {
                             char guessCharRes[100];
-                            send_message(inTurn->loginedClientConnfd, GAME_CONTROL_MESSAGE, "Congratulation!");
+                            send_message(currentRoom->player[inTurnPlayer]->loginedClientConnfd, GAME_CONTROL_MESSAGE, "Congratulation!");
                             char numOfCharStr[5];
                             tostring(numOfCharStr, numOfChar);
                             strcpy(guessCharRes, "We have ");
                             strcat(guessCharRes, numOfCharStr);
                             strcat(guessCharRes, " character");
-                            send_message(inTurn->loginedClientConnfd, GAME_CONTROL_MESSAGE, guessCharRes);
+                            send_message(currentRoom->player[inTurnPlayer]->loginedClientConnfd, GAME_CONTROL_MESSAGE, guessCharRes);
                             // TODO: tinh diem cho nguoi choi
 
                             roundEnd = 1;
                         }
                     }
-
-                    if(roundEnd == 0)  //round not end => next player's turn
+                }
+                if(roundEnd == 0)  //round not end => next player's turn
+                {
+                    if(inTurnPlayer != currentRoom->playerNumPreSet - 1)
+                        inTurnPlayer++;
+                    else inTurnPlayer = 0;
+                    if(startRoundPlayer == inTurnPlayer)
                     {
+                        roundEnd = 1;
                     }
                 }
             }

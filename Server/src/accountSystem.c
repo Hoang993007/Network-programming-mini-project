@@ -61,13 +61,14 @@ newNode->isLogined = 0;
 // ============================================
 accountNode* getAccountNodeByUserName (char* userName) {
   accountNode* tmp = accountNode_front;
-
+print_username_pass();
   while(tmp != NULL) {
     accountNode* getNode = tmp;
-    tmp = tmp->next;
+    printf("####%s\n", getNode->userName);
     if (strcmp(getNode->userName, userName) == 0) {
       return getNode;
     }
+        tmp = tmp->next;
   }
 
   return NULL;

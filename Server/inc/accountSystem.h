@@ -56,7 +56,7 @@ typedef struct _accountNode {
   int wrongPassCount;
 
   int isLogined;
-  struct in_addr loginedClientIP;
+  //struct in_addr loginedClientIP;
   int loginedClientConnfd;
 
   struct _accountNode* next;

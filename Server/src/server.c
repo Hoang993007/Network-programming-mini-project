@@ -451,6 +451,11 @@ void* service_signin(void *args)
     printf("[%s]: password: %s\n", inet_ntoa(clientIP[connfd_index]), password);
 
     int res = logIn (&(clientIP[connfd_index]), clientConnfd[connfd_index], userName, password);
+
+    if(res == LOGIN_SUCCESS)
+        client_account[connfd_index] = getAccountNodeByUserName(userName);
+
+
     char sres[10];
     tostring(sres, res);
     send_message(clientConnfd[connfd_index], MESSAGE, sres);
