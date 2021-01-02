@@ -520,7 +520,8 @@ void gameRoom(int roomID, int isHost)
         do
         {
             fgets(chatMessage, 500, stdin);
-            if(strcmp(recvMessage[GAME_CONTROL_DATA], "KICKED") == 0)
+            if((strcmp(recvMessage[GAME_CONTROL_DATA], "KICKED") == 0)
+            || (strcmp(recvMessage[GAME_CONTROL_DATA], "OUT_ROOM") == 0))
             {
                 getMessage(GAME_CONTROL_DATA, recvBuff);
                 outRoom = 1;

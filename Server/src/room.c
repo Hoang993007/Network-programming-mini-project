@@ -426,8 +426,44 @@ void* roomChat (void* args)
                             }
                             else if(strcmp(keyWord, "$QUIT") == 0)
                             {
-                                char* userName = strtok(NULL, "\t");
+
                                 send_message(currentRoom->playerConnfd[i], NOTIFICATION, "You've hit quit");
+
+                                int outRoomPlayerConnfd = currentRoom->playerConnfd[i];
+                                if(i == 0)
+                                {
+                                    char* userName = strtok(NULL, "\t");
+                                    for(int j = 0; j < currentRoom->playerNumPreSet; j++)
+                                    {
+                                        if(currentRoom->player[j] != NULL
+                                                && strcmp(currentRoom->player[j]->userName, userName) == 0)
+                                        {
+                                            currentRoom->player[0] = currentRoom->player[j];
+                                            currentRoom->playerConnfd[0] = currentRoom->playerConnfd[j];
+                                            currentRoom->playerRealdy[0] = currentRoom->playerRealdy[j];
+
+                                            currentRoom->player[j] = NULL;
+                                            currentRoom->playerConnfd[j] = -1;
+                                            currentRoom->playerRealdy[j] = 0;
+
+                                            send_message(currentRoom->playerConnfd[0], GAME_CONTROL_MESSAGE, "You're now the room host");
+                                        }
+                                    }
+
+                                }
+                                else
+                                {
+                                    currentRoom->player[i] = NULL;
+                                    currentRoom->currentPlayerNum--;
+                                    currentRoom->playerConnfd[i] = -1;
+                                    currentRoom->playerRealdy[i] = 0;
+                                }
+
+
+
+                                send_message(outRoomPlayerConnfd, GAME_CONTROL_DATA, "OUT_ROOM");
+
+
                             }
                         }
                     }
