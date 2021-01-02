@@ -318,7 +318,7 @@ int main(int argc, char *argv[])
                     case 1:
                         printf ("%s\n", "Service 1: Register");
                         connfdNoServiceRunning[k] = 0;
-                        //service_register(cliaddr, clientConnfd[k]);
+                        pthread_create(&(service_thread_id[freeThread_index]), NULL, &service_register, (void*)args);
                         break;
 
                     case 2:
@@ -401,7 +401,53 @@ int main(int argc, char *argv[])
 
 void* service_register(void *args)
 {
+//Detached thread is cleaned up automatically when it terminates
+    pthread_detach(pthread_self());
 
+    int thread_index;
+    int connfd_index;
+
+    user_thread_args *actual_args = args;
+
+    thread_index = actual_args->thread_index;
+    connfd_index = actual_args->clientConnfd_index;
+
+    free(args);
+
+    int recvBytes;
+    char recvBuff[RECV_BUFF_SIZE + 1];
+
+    userNameType userName;
+    passwordType password;
+
+    recvBytes = recv(clientConnfd[connfd_index], recvBuff, sizeof(recvBuff), 0);
+    userName[recvBytes] = '\0';
+    strcpy(userName, recvBuff);
+    printf("[%s]: User name: %s\n", inet_ntoa(clientIP[connfd_index]), userName);
+
+    if(isExistUserName(userName) == ACCOUNT_EXIST)
+    {
+        printf("Account exist\n");
+        send_message(clientConnfd[connfd_index],MESSAGE, "X");
+                connfdNoServiceRunning[connfd_index] = 1;
+        service_thread_index[thread_index] = -1;
+        return NULL;
+    }
+    else
+    {
+        printf("Account doesn't exist\n");
+        send_message(clientConnfd[connfd_index], MESSAGE, "O");
+    }
+
+    recvBytes = recv(clientConnfd[connfd_index], recvBuff, sizeof(recvBuff), 0);
+    recvBuff[recvBytes] = '\0';
+    strcpy(password, recvBuff);
+    printf("[%s]: password: %s\n", inet_ntoa(clientIP[connfd_index]), password);
+
+    signUp (userName, password);
+
+    connfdNoServiceRunning[connfd_index] = 1;
+    service_thread_index[thread_index] = -1;
 }
 
 void* service_signin(void *args)

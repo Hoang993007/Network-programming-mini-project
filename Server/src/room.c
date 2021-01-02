@@ -179,24 +179,12 @@ void* playerEnterRoom (void* args)
             char sendNum[5];
 
             tostring(sendNum, roomList[i]->roomID);
-            //printf("roomID: *%s*\n", sendNum);
             send_message(clientConnfd[connfd_index], MESSAGE, sendNum);
-//printf("Cheking0...!\n");
-
-            //printf("room name: *%s*\n", roomList[i]->roomName);
             send_message(clientConnfd[connfd_index], MESSAGE, roomList[i]->roomName);
-//printf("Cheking1...!\n");
-
             tostring(sendNum, roomList[i]->playerNumPreSet);
-            //printf("room num preset: *%s*\n", sendNum);
             send_message(clientConnfd[connfd_index], MESSAGE, sendNum);
-//printf("Cheking2...!\n");
-
             tostring(sendNum, roomList[i]->currentPlayerNum);
-            //printf("player num: *%s*\n", sendNum);
             send_message(clientConnfd[connfd_index], MESSAGE, sendNum);
-
-            //printf("Cheking3...!\n");
         }
     }
 
@@ -390,12 +378,12 @@ void* roomChat (void* args)
                                 accountNode* invAccount = getAccountNodeByUserName(userName);
                                 if(invAccount->isLogined == 0)
                                 {
-                                    send_message(currentRoom->playerConnfd[i], MESSAGE, "PLAYER_NOT_ONLINE_NOW");
+                                    send_message(currentRoom->playerConnfd[i], NOTIFICATION, "Player is not online now");
                                 }
                                 else
                                 {
                                     char invMessage[100];
-                                    strcmp(invMessage, "You have an invitation from ");
+                                    strcpy(invMessage, "You have an invitation from ");
                                     strcat(invMessage, currentRoom->player[i]->userName);
                                     strcat(invMessage, " to enter room with ID is ");
                                     char roomIDStr[5];
@@ -409,7 +397,7 @@ void* roomChat (void* args)
                                 if(i == 0)
                                 {
                                     char* userName = strtok(NULL, "\t");
-                                    for(int i = 0; i < currentRoom->playerNumPreSet - 1; i++)
+                                    for(int i = 0; i < currentRoom->playerNumPreSet; i++)
                                     {
                                         if(currentRoom->player[i] != NULL
                                                 && strcmp(currentRoom->player[i]->userName, userName) == 0)
@@ -417,12 +405,13 @@ void* roomChat (void* args)
                                             currentRoom->player[i] = NULL;
                                             currentRoom->currentPlayerNum--;
                                             send_message(currentRoom->playerConnfd[i], NOTIFICATION, "Host have kicked you out of room");
+                                            send_message(currentRoom->playerConnfd[i], GAME_CONTROL_DATA, "KICKED");
                                             currentRoom->playerConnfd[i] = -1;
                                             currentRoom->playerRealdy[i] = 0;
                                             send_message(currentRoom->playerConnfd[0], NOTIFICATION, "Kick successfuly");
-
+                                            break;
                                         }
-                                        if (i == currentRoom->playerNumPreSet - 2)
+                                        if (i == currentRoom->playerNumPreSet - 1)
                                         {
                                             send_message(currentRoom->playerConnfd[0], NOTIFICATION, "Kick fail");
                                         }
@@ -540,6 +529,8 @@ void* roomPlay (void* args)
             send_message(currentRoom->playerConnfd[j], GAME_CONTROL_DATA, ansLenStr);
         }
 
+        int ansSolvedLetterNum = 0;
+
         while(ques_solved != 1)
         {
             //TODO: roll the wheel to start new round
@@ -548,13 +539,26 @@ void* roomPlay (void* args)
             int startRoundPlayer = inTurnPlayer;
             do
             {
+                char turnMessage[100];
                 send_message(currentRoom->player[inTurnPlayer]->loginedClientConnfd, GAME_CONTROL_DATA, "YOUR_TURN");
+                strcpy(turnMessage, currentRoom->player[inTurnPlayer]->userName);
+                strcat(turnMessage, "'s turn");
+                for(int j = 0; j < currentRoom->playerNumPreSet; j++)
+                {
+                    if(j != inTurnPlayer)
+                        send_message(currentRoom->playerConnfd[j], GAME_CONTROL_MESSAGE, turnMessage);
+                }
+
                 recvBytes = recv(currentRoom->player[inTurnPlayer]->loginedClientConnfd, recvBuff, sizeof(recvBuff), 0);
                 recvBuff[recvBytes] = '\0';
                 char inTurnPlayerAns[200];
                 strcat(inTurnPlayerAns, currentRoom->player[inTurnPlayer]->userName);
                 char* stringCut;
                 stringCut = strtok(recvBuff, "-");
+
+                strcpy(inTurnPlayerAns, currentRoom->player[inTurnPlayer]->userName);
+                strcat(inTurnPlayerAns, " chose to ");
+
                 if(stringCut[0] == '1')
                 {
                     char playerAnswer[20];
@@ -563,26 +567,60 @@ void* roomPlay (void* args)
 
                     strcat(inTurnPlayerAns, " chose to solve the question\nThe answer they gave is: ");
                     strcat(inTurnPlayerAns, playerAnswer);
-                    // guri cho tat car tru thang nay
+                    for(int j = 0; j < currentRoom->playerNumPreSet; j++)
+                    {
+                        if(j != inTurnPlayer)
+                            send_message(currentRoom->playerConnfd[j], GAME_CONTROL_MESSAGE, inTurnPlayerAns);
+                    }
 
                     if(strcmp(playerAnswer, cur_ques_ans->ans) == 0)
                     {
                         send_message(currentRoom->player[inTurnPlayer]->loginedClientConnfd, GAME_CONTROL_MESSAGE, "Congratulation!");
                         ques_solved = 1;
 
+                        strcpy(inTurnPlayerAns, "The answer is correct");
+                        for(int j = 0; j < currentRoom->playerNumPreSet; j++)
+                        {
+                            if(j != inTurnPlayer)
+                                send_message(currentRoom->playerConnfd[j], GAME_CONTROL_MESSAGE, inTurnPlayerAns);
+                        }
+
                         //TODO: Tinh diem cho nguoi choi
                         roundEnd = 1;
                         continue;
                     }
-                    else {
-                    send_message(currentRoom->player[inTurnPlayer]->loginedClientConnfd, GAME_CONTROL_MESSAGE, "Wrong!");
+                    else
+                    {
+                        send_message(currentRoom->player[inTurnPlayer]->loginedClientConnfd, GAME_CONTROL_MESSAGE, "Wrong!");
+                        strcpy(inTurnPlayerAns, "The answer is wrong");
+                        for(int j = 0; j < currentRoom->playerNumPreSet; j++)
+                        {
+                            if(j != inTurnPlayer)
+                                send_message(currentRoom->playerConnfd[j], GAME_CONTROL_MESSAGE, inTurnPlayerAns);
+                        }
                     }
                 }
                 else if(stringCut[0] == '2')
                 {
+                    strcat(turnMessage, "guess letter");
+                    for(int j = 0; j < currentRoom->playerNumPreSet; j++)
+                    {
+                        if(j != inTurnPlayer)
+                            send_message(currentRoom->playerConnfd[j], GAME_CONTROL_MESSAGE, turnMessage);
+                    }
+
                     char character[2];
                     stringCut = strtok(NULL, "-");
                     strcpy(character, stringCut);
+
+
+                    strcat(inTurnPlayerAns, " chose to guess letter\nThe answer they gave is: ");
+                    strcat(inTurnPlayerAns, character);
+                    for(int j = 0; j < currentRoom->playerNumPreSet; j++)
+                    {
+                        if(j != inTurnPlayer)
+                            send_message(currentRoom->playerConnfd[j], GAME_CONTROL_MESSAGE, inTurnPlayerAns);
+                    }
 
                     int numOfChar = 0;
                     int checkIfGuessed = 0;
@@ -612,6 +650,12 @@ void* roomPlay (void* args)
                         if(numOfChar == 0)
                         {
                             send_message(currentRoom->player[inTurnPlayer]->loginedClientConnfd, GAME_CONTROL_MESSAGE, "Try again later");
+                            strcpy(inTurnPlayerAns, "We have no letter");
+                            for(int j = 0; j < currentRoom->playerNumPreSet; j++)
+                            {
+                                if(j != inTurnPlayer)
+                                    send_message(currentRoom->playerConnfd[j], GAME_CONTROL_MESSAGE, inTurnPlayerAns);
+                            }
                         }
                         else
                         {
@@ -621,9 +665,24 @@ void* roomPlay (void* args)
                             tostring(numOfCharStr, numOfChar);
                             strcpy(guessCharRes, "We have ");
                             strcat(guessCharRes, numOfCharStr);
-                            strcat(guessCharRes, " character");
+                            strcat(guessCharRes, " letter ");
+                            strcat(guessCharRes, character);
                             send_message(currentRoom->player[inTurnPlayer]->loginedClientConnfd, GAME_CONTROL_MESSAGE, guessCharRes);
                             // TODO: tinh diem cho nguoi choi
+
+                            strcpy(inTurnPlayerAns, "We have ");
+                            strcat(inTurnPlayerAns, numOfCharStr);
+                            strcat(guessCharRes, " letters");
+                            for(int j = 0; j < currentRoom->playerNumPreSet; j++)
+                            {
+                                if(j != inTurnPlayer)
+                                    send_message(currentRoom->playerConnfd[j], GAME_CONTROL_MESSAGE, inTurnPlayerAns);
+                            }
+
+                            ansSolvedLetterNum += numOfChar;
+
+                            if(ansSolvedLetterNum == cur_ques_ans->ansLen)
+                                ques_solved = 1;
 
                             roundEnd = 1;
                         }
@@ -634,6 +693,7 @@ void* roomPlay (void* args)
                     if(inTurnPlayer != currentRoom->playerNumPreSet - 1)
                         inTurnPlayer++;
                     else inTurnPlayer = 0;
+
                     if(startRoundPlayer == inTurnPlayer)
                     {
                         roundEnd = 1;

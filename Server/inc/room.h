@@ -26,7 +26,7 @@
 #define MAX_ROOM 5
 #define MAX_ROOM_PLAYER 5
 #define ROOM_NAME_MAX_LENGTH 20
-#define ROOM_QUEST_NUM 1
+#define ROOM_QUEST_NUM 3
 
 // ROOM ------------------------------------------------------------
 typedef struct _room

@@ -114,9 +114,9 @@ void* recv_message(void *args)
         }
         else if(strcmp(receiveType, "MESSAGE") == 0)
         {
-            while(messageReady[1] == 1);
-            strcpy(recvMessage[1], message);
-            messageReady[1] = 1;
+            while(messageReady[MESSAGE] == 1);
+            strcpy(recvMessage[MESSAGE], message);
+            messageReady[MESSAGE] = 1;
         }
         else if(strcmp(receiveType, "CHAT_MESSAGE") == 0)
         {
@@ -178,68 +178,40 @@ int checkCharacter(char* c)
         return 0;
 }
 
-void signin ()
+void signUp ()
 {
-    int loginFlag = 0;
-    do
+    char service[5];
+    strcpy(service, "1");
+    send(sockfd, service, sizeof(service), 0);
+
+    userNameType userName;
+    passwordType password;
+
+    printf("User name: ");
+    scanf("%s", userName);
+    getchar();
+    send(sockfd, userName, sizeof(userName), 0);
+
+
+    char recvBuff[RECV_BUFF_SIZE];
+    while(messageReady[MESSAGE] == 0);
+    getMessage(MESSAGE, recvBuff);
+    if(strcmp(recvBuff, "X") == 0)
     {
-        char service[5];
-        // service 3: login
-        strcpy(service, "3");
-        send(sockfd, service, sizeof(service), 0);
-
-        userNameType userName;
-        passwordType password;
-
-        printf("User name: ");
-        scanf("%s", userName);
-        getchar();
-        send(sockfd, userName, sizeof(userName), 0);
-
-
-        char recvBuff[RECV_BUFF_SIZE];
-        getMessage(MESSAGE, recvBuff);
-        if(strcmp(recvBuff, "X") == 0)
-        {
-            printf("-----------------------------\n\n");
-            printf("Wrong account\n");
-            printf("-----------------------------\n");
-            continue;
-        }
-
-        printf("Insert password: ");
-        scanf("%s", password);
-        getchar();
-        send(sockfd, password, sizeof(password), 0);
-
-        int res;
-        getMessage(MESSAGE, recvBuff);
-        res = atoi(recvBuff);
-        //printf("resCode: %d\n", res);
-
-        if(res == LOGIN_SUCCESS)
-        {
-            printf("Log in sucessfuly\n\n");
-            printf("-----------------------------\n");
-            loginFlag = 1;
-        }
-        else if(res == ACCOUNT_JUST_BLOCKED)
-        {
-            printf("Account is blocked\n");
-            printf("-----------------------------\n");
-        }
-        else if(res == ACCOUNT_IDLE || res == ACCOUNT_BLOCKED)
-        {
-            printf("Account not ready\n");
-            printf("-----------------------------\n");
-        }
-        else  // wrong password
-        {
-            printf("Wrong password\n");
-            printf("-----------------------------\n");
-        }
+        printf("-----------------------------\n\n");
+        printf("Register failed\n");
+        printf("-----------------------------\n");
+        return;
     }
-    while (loginFlag != 1);
+
+    printf("Insert password: ");
+    scanf("%s", password);
+    getchar();
+    send(sockfd, password, sizeof(password), 0);
+
+
+    printf("Sign up sucessfuly\n\n");
+    printf("-----------------------------\n");
 }
 
 void login ()
@@ -351,28 +323,32 @@ int main(int argc, char *argv[])
     {
         printf("You did not loged in!\nPlease login or create a new account before playing!\n*****----***\n");
         int loginOrSignin;
-        printf("-----------------------------\n");
-        printf("OPTION\n\n");
-        printf("0. Login\n");
-        printf("1. Sign in\n");
-        printf("Enter your choice: ");
-
-        scanf("%d", &loginOrSignin);
-        getchar();
-        printf("-----------------------------\n");
-        switch(loginOrSignin)
+        do
         {
-        case 0:
-            printf("LOGIN\n\n");
-            login ();
-            break;
-        case 1:
-            printf("SIGN IN\n\n");
-            signin();
-            break;
-        default:
-            break;
+            printf("-----------------------------\n");
+            printf("OPTION\n\n");
+            printf("0. Login\n");
+            printf("1. Sign up\n");
+            printf("Enter your choice: ");
+
+            scanf("%d", &loginOrSignin);
+            getchar();
+            printf("-----------------------------\n");
+            switch(loginOrSignin)
+            {
+            case 0:
+                printf("LOGIN\n\n");
+                login ();
+                break;
+            case 1:
+                printf("SIGN UP\n\n");
+                signUp();
+                break;
+            default:
+                break;
+            }
         }
+        while(loginOrSignin != 0);
     }
     else
     {
@@ -534,6 +510,7 @@ void gameRoom(int roomID, int isHost)
         printf("-----------------------------\n\n");
     }
 
+    int outRoom = 0;
     do
     {
         char chatMessage[500];
@@ -543,12 +520,20 @@ void gameRoom(int roomID, int isHost)
         do
         {
             fgets(chatMessage, 500, stdin);
+            if(strcmp(recvMessage[GAME_CONTROL_DATA], "KICKED") == 0)
+            {
+                getMessage(GAME_CONTROL_DATA, recvBuff);
+                outRoom = 1;
+                break;
+            };
             chatMessage[strlen(chatMessage) - 1] = '\0';
             printf("> you: %s\n", chatMessage);
             send(sockfd, chatMessage, sizeof(chatMessage), 0);
             if(strcmp(chatMessage, "$REALDY") == 0) realdy = 1;
         }
         while(realdy == 0);
+
+        if(outRoom == 1) break;
 
         while(strcmp(recvMessage[1], "GAME_START") != 0);
         getMessage(MESSAGE, recvBuff);

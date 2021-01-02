@@ -4,6 +4,15 @@
 #include "../inc/services.h"
 #include "../inc/accountSystem.h"
 
+int signUp (userNameType userName, passwordType password)
+{
+    if(accountRegister (userName, password) == ACCOUNT_EXIST) {
+    printf("Signup in failed\n");
+    return ACCOUNT_EXIST;
+    }
+    else return 999;
+}
+
 int logIn (struct in_addr* IP, int connfd, userNameType userName, passwordType password)
 {
     //TODO: check if username doesn't exist

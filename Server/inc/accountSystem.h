@@ -67,7 +67,7 @@ extern accountNode* accountNode_rear;
 
 int openFileStream(FILE* file, char* path, char* opt);
 void freeAccountNode();
-void accountRegister (userNameType newUserName, passwordType password);
+int accountRegister (userNameType newUserName, passwordType password);
 
 // add new account -----------------------------------------
 int addAccountNode (char* userName, char* password, accountStatus status);
