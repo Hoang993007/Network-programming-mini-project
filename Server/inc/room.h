@@ -59,6 +59,7 @@ void* playerEnterRoom (void* args);
 void* roomChat (void* args);
 room* getRoomByID(int ID);
 void* roomPlay (void* args);
+int nextPlayerTurn (room* currentRoom, int startRoundPlayer, int* inTurnPlayer);
 void* quitRoom (void* args);
 void* deleteRoom (void* args);
 

@@ -30,6 +30,9 @@
 
 #define RECV_BUFF_SIZE 4096
 
+#define ROUND_END 1
+#define ROUND_CONTINUE 0
+
 pthread_mutex_t room_data_lock = PTHREAD_MUTEX_INITIALIZER;
 
 int roomIDGenerate = 0;
@@ -126,12 +129,6 @@ void* newRoom(void* args)
 
         pthread_t tmp;
         pthread_create(&tmp, NULL, &roomChat, (void*)(&(newRoom->roomID)));
-
-//        //delete room
-//        room* tmp = newRoom;
-//        roomList[room_index] = NULL;
-//        free(tmp);
-//        roomNum--;
     }
     else
     {
@@ -573,10 +570,12 @@ void* roomPlay (void* args)
 
             int roundEnd = 0;
             int startRoundPlayer = inTurnPlayer;
+            fd_set readfd_inturnPlayer;
             do
             {
                 char turnMessage[100];
-                send_message(currentRoom->player[inTurnPlayer]->loginedClientConnfd, GAME_CONTROL_DATA, "YOUR_TURN");
+                            int inTurnPlayerConnfd = currentRoom->player[inTurnPlayer]->loginedClientConnfd;
+                send_message(inTurnPlayerConnfd, GAME_CONTROL_DATA, "YOUR_TURN");
                 strcpy(turnMessage, currentRoom->player[inTurnPlayer]->userName);
                 strcat(turnMessage, "'s turn");
                 for(int j = 0; j < currentRoom->playerNumPreSet; j++)
@@ -585,7 +584,28 @@ void* roomPlay (void* args)
                         send_message(currentRoom->playerConnfd[j], GAME_CONTROL_MESSAGE, turnMessage);
                 }
 
-                recvBytes = recv(currentRoom->player[inTurnPlayer]->loginedClientConnfd, recvBuff, sizeof(recvBuff), 0);
+                send_message(inTurnPlayerConnfd, GAME_CONTROL_DATA, "10");
+
+                FD_ZERO(&readfd_inturnPlayer);
+                FD_SET(inTurnPlayerConnfd, &readfd_inturnPlayer);
+                int n = inTurnPlayerConnfd;
+                struct timeval tv;
+                tv.tv_sec = 10;
+                tv.tv_usec = 500000;
+                int rv = select(n + 1, &readfd_inturnPlayer, NULL, NULL, &tv);
+                if (rv == -1)
+                {
+                    perror("Error: ");
+                }
+                else if (rv == 0)
+                {
+                    send_message(inTurnPlayerConnfd, GAME_CONTROL_MESSAGE, "Time out");
+                    roundEnd = nextPlayerTurn(currentRoom, startRoundPlayer, &inTurnPlayer);
+                    continue;
+                }
+
+                recvBytes = recv(inTurnPlayerConnfd, recvBuff, sizeof(recvBuff), 0);
+
                 recvBuff[recvBytes] = '\0';
                 char inTurnPlayerAns[200];
                 strcat(inTurnPlayerAns, currentRoom->player[inTurnPlayer]->userName);
@@ -611,7 +631,7 @@ void* roomPlay (void* args)
 
                     if(strcmp(playerAnswer, cur_ques_ans->ans) == 0)
                     {
-                        send_message(currentRoom->player[inTurnPlayer]->loginedClientConnfd, GAME_CONTROL_MESSAGE, "Congratulation!");
+                        send_message(inTurnPlayerConnfd, GAME_CONTROL_MESSAGE, "Congratulation!");
                         ques_solved = 1;
 
                         strcpy(inTurnPlayerAns, "The answer is correct");
@@ -627,7 +647,7 @@ void* roomPlay (void* args)
                     }
                     else
                     {
-                        send_message(currentRoom->player[inTurnPlayer]->loginedClientConnfd, GAME_CONTROL_MESSAGE, "Wrong!");
+                        send_message(inTurnPlayerConnfd, GAME_CONTROL_MESSAGE, "Wrong!");
                         strcpy(inTurnPlayerAns, "The answer is wrong");
                         for(int j = 0; j < currentRoom->playerNumPreSet; j++)
                         {
@@ -670,7 +690,7 @@ void* roomPlay (void* args)
                     }
                     if(checkIfGuessed == 1)
                     {
-                        send_message(currentRoom->player[inTurnPlayer]->loginedClientConnfd, GAME_CONTROL_MESSAGE, "You've guessed the same character which is guessed before");
+                        send_message(inTurnPlayerConnfd, GAME_CONTROL_MESSAGE, "You've guessed the same character which is guessed before");
                     }
                     else
                     {
@@ -685,7 +705,7 @@ void* roomPlay (void* args)
 
                         if(numOfChar == 0)
                         {
-                            send_message(currentRoom->player[inTurnPlayer]->loginedClientConnfd, GAME_CONTROL_MESSAGE, "Try again later");
+                            send_message(inTurnPlayerConnfd, GAME_CONTROL_MESSAGE, "Try again later");
                             strcpy(inTurnPlayerAns, "We have no letter");
                             for(int j = 0; j < currentRoom->playerNumPreSet; j++)
                             {
@@ -696,14 +716,14 @@ void* roomPlay (void* args)
                         else
                         {
                             char guessCharRes[100];
-                            send_message(currentRoom->player[inTurnPlayer]->loginedClientConnfd, GAME_CONTROL_MESSAGE, "Congratulation!");
+                            send_message(inTurnPlayerConnfd, GAME_CONTROL_MESSAGE, "Congratulation!");
                             char numOfCharStr[5];
                             tostring(numOfCharStr, numOfChar);
                             strcpy(guessCharRes, "We have ");
                             strcat(guessCharRes, numOfCharStr);
                             strcat(guessCharRes, " letter ");
                             strcat(guessCharRes, character);
-                            send_message(currentRoom->player[inTurnPlayer]->loginedClientConnfd, GAME_CONTROL_MESSAGE, guessCharRes);
+                            send_message(inTurnPlayerConnfd, GAME_CONTROL_MESSAGE, guessCharRes);
                             // TODO: tinh diem cho nguoi choi
 
                             strcpy(inTurnPlayerAns, "We have ");
@@ -724,19 +744,13 @@ void* roomPlay (void* args)
                         }
                     }
                 }
+
                 if(roundEnd == 0)  //round not end => next player's turn
                 {
-                    if(inTurnPlayer != currentRoom->playerNumPreSet - 1)
-                        inTurnPlayer++;
-                    else inTurnPlayer = 0;
-
-                    if(startRoundPlayer == inTurnPlayer)
-                    {
-                        roundEnd = 1;
-                    }
+                    roundEnd = nextPlayerTurn(currentRoom, startRoundPlayer, &inTurnPlayer);
                 }
             }
-            while(roundEnd == 0);
+            while(roundEnd == ROUND_CONTINUE);
             if(ques_solved != 1)
             {
                 for(int j = 0; j < currentRoom->playerNumPreSet; j++)
@@ -761,6 +775,19 @@ void* roomPlay (void* args)
         send_message(currentRoom->playerConnfd[j], GAME_CONTROL_DATA, "END_GAME");
     }
 
+}
+
+int nextPlayerTurn (room* currentRoom, int startRoundPlayer, int* inTurnPlayer)
+{
+    if(*inTurnPlayer != currentRoom->playerNumPreSet - 1) {
+        *inTurnPlayer = *inTurnPlayer + 1;
+        }
+    else *inTurnPlayer = 0;
+    if(startRoundPlayer == *inTurnPlayer)
+    {
+        return ROUND_END;
+    }
+    return ROUND_CONTINUE;
 }
 
 void* quitRoom (void* args)

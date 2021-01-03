@@ -25,6 +25,10 @@
 #define ACTIVE_SUCCESS 21
 #define ACTIVE_ERROR 22
 
+extern int sockfd;
+
+void signUp ();
+void login ();
 void gameRoom(int roomID, int isHost);
 
 #endif
