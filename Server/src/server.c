@@ -206,7 +206,7 @@ int main(int argc, char *argv[])
             perror("\Error: ");
             // error occurred in select()
         }
-        else printf ("The index of ready file descriptors (in the FD array) : %d\n", canReadFdIndex);
+        //else printf ("The index of ready file descriptors (in the FD array) : %d\n", canReadFdIndex);
 
         //printf("\n#Start processing service\n\n");
 
@@ -262,7 +262,7 @@ int main(int argc, char *argv[])
             if(clientConnfd[k] != -1)
                 if(FD_ISSET(clientConnfd[k], &readfds))
                 {
-                    printf("Client connection descriptor: %d are waiting to be processed\n", clientConnfd[k]);
+                    //printf("Client connection descriptor: %d are waiting to be processed\n", clientConnfd[k]);
                     if(connfdNoServiceRunning[k] == 1 && clientConnfd[k] != newClientConnfd)
                     {
                         {

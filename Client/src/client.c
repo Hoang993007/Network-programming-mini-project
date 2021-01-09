@@ -556,13 +556,19 @@ void* gamePlay(void* args)
                 while(messageReady[GAME_CONTROL_DATA] != 1
                         || (strcmp(recvMessage[GAME_CONTROL_DATA], "YOUR_TURN") != 0
                             && strcmp(recvMessage[GAME_CONTROL_DATA], "GAME_BREAK") != 0
-                            && strcmp(recvMessage[GAME_CONTROL_DATA], "QUES_SOLVED") != 0));
+                            && strcmp(recvMessage[GAME_CONTROL_DATA], "QUES_SOLVED") != 0
+                            && strcmp(recvMessage[GAME_CONTROL_DATA], "NEXT_ROUND") != 0));
 
                 if(strcmp(recvMessage[GAME_CONTROL_DATA], "QUES_SOLVED") == 0)
                     break;
 
-                if(strcmp(recvMessage[GAME_CONTROL_DATA], "GAME_BREAK") == 0)
+                if(strcmp(recvMessage[GAME_CONTROL_DATA], "NEXT_ROUND") == 0)
+                    break;
+
+                if(strcmp(recvMessage[GAME_CONTROL_DATA], "GAME_BREAK") == 0) {
+                    getMessage(GAME_CONTROL_DATA, recvBuff);
                     printf("game break...\n");
+                    }
 
                 int timeOut;
                 timeOut = 0;
@@ -575,28 +581,43 @@ void* gamePlay(void* args)
                 getMessage(GAME_CONTROL_DATA, recvBuff);
                 int timeOutS = atoi(recvBuff);
 
-                printf("You have %d s to give your choice and other %d s to give you answer\n\n", timeOutS/2, timeOutS/2);
+                printf("You have %d s to give your answer\n\n", timeOutS);
 
-                char choice[100];
+                char choice_answer[100];
+                char choice[2];
+                char playerAnswer[50];
                 printf("OPTION:\n");
                 printf("1. Solve the question\n");
                 printf("2. Guess character\n");
-
+int tabCount = 0;
                 do
                 {
-                    printf("Enter your choice: \n");
 
-                    timeOut = fgets_timeout (choice, sizeof(choice), timeOutS);
+                    printf("Enter your choice (choice<tab>answer): \n");
+
+                    timeOut = fgets_timeout (choice_answer, sizeof(choice_answer), timeOutS);
                     if(timeOut == -1)
                         break;
+                    choice_answer[strlen(choice_answer) - 1] = '\0';
+                    for(int i = 0; i < strlen(choice_answer); i++)
+                    if(choice_answer[i] == '\t') tabCount = 1;
 
-                    choice[strlen(choice) - 1] = '\0';
+                    if(tabCount == 0) continue;
+
+                    char* strTmp;
+                    strTmp = strtok(choice_answer, "\t");
+                    strcpy(choice, strTmp);
+                    strTmp = strtok(NULL, "\t");
+                    strcpy(playerAnswer, strTmp);
                 }
-                while(strlen(choice) != 1 || (choice[0] != '1' && choice[0] != '2'));
+                while(tabCount == 0
+                || strlen(choice) != 1
+                || (choice[0] != '1' && choice[0] != '2')
+                || (choice[0] == '2' && strlen(playerAnswer) != 1 ));
 
                 if(timeOut == -1)
                 {
-                    //printf("###Time out\n");
+                    printf("Time out\n");
                 }
                 else
                 {
@@ -604,39 +625,12 @@ void* gamePlay(void* args)
                     char choiceInTurn[200];
                     strcpy(choiceInTurn, choice);
                     strcat(choiceInTurn, "-");
+                    strcat(choiceInTurn, playerAnswer);
 
-                    char answerInTurn[20];
-
-                    if(choice[0] == '1')
-                    {
-                        printf("You've chosen option 1\nEnter your answer: \n");
-                        timeOut = fgets_timeout (answerInTurn, sizeof(answerInTurn), timeOutS);
-                        if(timeOut != -1) {
-                        answerInTurn[strlen(answerInTurn) - 1] = '\0';
-                        }
-                    }
-
-                    if(choice[0] == '2')
-                    {
-                        do
-                        {
-                            printf("You've chosen option 2\nEnter character: ");
-                            timeOut = fgets_timeout (answerInTurn, sizeof(answerInTurn), timeOutS);
-                            if(timeOut == -1)
-                                break;
-                            answerInTurn[strlen(answerInTurn) - 1] = '\0';
-                        }
-                        while(strlen(answerInTurn) != 1);
-                    }
-
-                    if(timeOut != -1)
-                    {
-                        strcat(choiceInTurn, answerInTurn);
                         send(client.sockfd, choiceInTurn, sizeof(choiceInTurn), 0);
-                    }
                 }
-                clearScreen();
-
+                //clearScreen();
+//printf("###end turn\n");
                 while(messageReady[GAME_CONTROL_DATA] == 0 || (strcmp(recvMessage[GAME_CONTROL_DATA], "NEXT_ROUND") != 0
                         && strcmp(recvMessage[GAME_CONTROL_DATA], "QUES_SOLVED") != 0));
 

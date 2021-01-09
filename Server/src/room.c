@@ -373,7 +373,7 @@ void* roomChat (void* args)
     {
         while(currentRoom->currentPlayerNum != currentRoom->playerNumPreSet
                 || numOfReadyPlayer(currentRoom) != currentRoom->playerNumPreSet)
-        {
+        {printf("Ready player: %d\n", numOfReadyPlayer(currentRoom));
             // PREPARE FOR SELECTING
             FD_ZERO(&(currentRoom->readfds));
             for(int i = 0; i < currentRoom->playerNumPreSet; i++)
@@ -523,6 +523,7 @@ void* roomChat (void* args)
                     }
             }
         }
+
         int res = roomPlay (currentRoom->roomID);
         if(res == ROOM_ERROR_PLAYER_OUTROOM)
         {
@@ -638,6 +639,7 @@ int roomPlay (int roomID)
     printf("---------------------------------------------\n\n");
 
     int avoidID[ROOM_QUEST_NUM];
+    char timeOutAmount[] = "20";
     for(int i = 0; i < ROOM_QUEST_NUM; i++)
     {
         avoidID[i] =  -1;
@@ -732,7 +734,7 @@ int roomPlay (int roomID)
                     }
                 }
 
-                sendBytes = send_message(inTurnPlayerConnfd, GAME_CONTROL_DATA, "10");
+                sendBytes = send_message(inTurnPlayerConnfd, GAME_CONTROL_DATA, timeOutAmount);
                 if(sendBytes == 0)
                 {
                     return ROOM_ERROR_PLAYER_OUTROOM;
@@ -742,8 +744,8 @@ int roomPlay (int roomID)
                 FD_SET(inTurnPlayerConnfd, &readfd_inturnPlayer);
                 int n = inTurnPlayerConnfd;
                 struct timeval tv;
-                tv.tv_sec = 10;
-                tv.tv_usec = 500000;
+                tv.tv_sec = atoi(timeOutAmount) + 5;
+                printf("### waiting for player's answer...\n");
                 int rv = select(n + 1, &readfd_inturnPlayer, NULL, NULL, &tv);
                 if (rv == -1)
                 {
@@ -751,15 +753,16 @@ int roomPlay (int roomID)
                 }
                 else if (rv == 0)
                 {
-                    sendBytes = send_message(inTurnPlayerConnfd, GAME_CONTROL_MESSAGE, "Time out");
-                    if(sendBytes == 0)
-                    {
-                        return ROOM_ERROR_PLAYER_OUTROOM;
-                    }
+//                    sendBytes = send_message(inTurnPlayerConnfd, GAME_CONTROL_MESSAGE, "Time out");
+//                    if(sendBytes == 0)
+//                    {
+//                        return ROOM_ERROR_PLAYER_OUTROOM;
+//                    }
                     roundEnd = nextPlayerTurn(currentRoom, startRoundPlayer, &inTurnPlayer);
                     continue;
                 }
 
+                                printf("### player answered...\n");
                 recvBytes = recv(inTurnPlayerConnfd, recvBuff, sizeof(recvBuff), 0);
                 if(recvBytes == 0)
                 {
@@ -1108,6 +1111,11 @@ void printOneRoom (int roomID)
             for(int j = 0; j < roomList[i]->playerNumPreSet; j++)
             {
                 printf("%d|", roomList[i]->playerConnfd[j]);
+            }
+            printf("\n");
+            for(int j = 0; j < roomList[i]->playerNumPreSet; j++)
+            {
+                printf("%d|", roomList[i]->playerReady[j]);
             }
             printf("\n");
             break;

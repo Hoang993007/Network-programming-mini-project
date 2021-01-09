@@ -63,6 +63,7 @@ void kickPlayer(room* room, char* kickedUserName);
 void newRoomHost(room* room, int newHostIndex);
 room* getRoomByID(int ID);
 int roomPlay (int roomID);
+int countLetter(char* src, char letter);
 int nextPlayerTurn (room* currentRoom, int startRoundPlayer, int* inTurnPlayer);
 void quitRoom (int playerIndex, room* room);
 int numOfReadyPlayer(room* room);
