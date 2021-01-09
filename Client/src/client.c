@@ -530,6 +530,7 @@ void* gamePlay(void* args)
     printf("---------------------------------------------\n\n");
 
     int quesNum = 0;
+    char question[100];
     int quitGame = 0;
     do
     {
@@ -539,16 +540,18 @@ void* gamePlay(void* args)
         if(strcmp(recvBuff, "END_GAME") == 0)
             break;
 
-        printf("Question %d: %s\n\n", quesNum, recvBuff);
+        strcpy(question, recvBuff);
 
         getMessage(GAME_CONTROL_DATA, recvBuff);
         int ansLen = atoi(recvBuff);
-        printf("Number of character of the answer: %d\n", ansLen);
 
         while(strcmp(recvMessage[GAME_CONTROL_DATA], "QUES_SOLVED") != 0)
         {
             do
             {
+                printf("Question %d: %s\n\n", quesNum, question);
+                printf("Number of character of the answer: %d\n", ansLen);
+
                 //printf("###waiting turn...\n");
                 while(messageReady[GAME_CONTROL_DATA] != 1
                         || (strcmp(recvMessage[GAME_CONTROL_DATA], "YOUR_TURN") != 0
@@ -632,7 +635,7 @@ void* gamePlay(void* args)
                         send(client.sockfd, choiceInTurn, sizeof(choiceInTurn), 0);
                     }
                 }
-                //printf("###end turn\n");
+                clearScreen();
 
                 while(messageReady[GAME_CONTROL_DATA] == 0 || (strcmp(recvMessage[GAME_CONTROL_DATA], "NEXT_ROUND") != 0
                         && strcmp(recvMessage[GAME_CONTROL_DATA], "QUES_SOLVED") != 0));

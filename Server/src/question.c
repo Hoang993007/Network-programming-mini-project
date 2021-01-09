@@ -189,7 +189,7 @@ line++;
         addQues_ansNode(id, ques, ans);
     }
 
-    if(PRINT_QUES_ANS_DB == 1) print_ques_ans();
+    //if(PRINT_QUES_ANS_DB == 1) print_ques_ans();
 
     fclose(ques_ans_file);
 }

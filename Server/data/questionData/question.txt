@@ -1,7 +1,91 @@
-Total	2
+Total	30
 No.1
-Ques	Tổng bí thư thứ 3 của Việt Nam là ai?
-Ans	hahuytap
+Ques	In what year was the first iPhone released?
+Ans	2007
 No.2
-Ques	Cái gì bụng ở đằng trước mà lưng thì ở đằng sau còn hai mắt thì ở tận dưới chân.
-Ans	cangchan
+Ques	The tallest building in the world is located in which city?
+Ans	dubai
+No.3
+Ques	Who directed Pulp Fiction?
+Ans	quentintarantino
+No.4
+Ques	Where is the original Starry Night by Vincent Van Gogh housed?
+Ans	museumofmodernart
+No.5
+Ques	How many actors have played the role of James Bond?
+Ans	nine
+No.6
+Ques	What company is also the name of one of the longest rivers in the world?
+Ans	amazon
+No.7
+Ques	In Monsters Inc. what is Sulley’s full name?
+Ans	jamessullivan
+No.8
+Ques	How many children does Queen Elizabeth have
+Ans	four
+No.9
+Ques	Beirut is the capital of which country?
+Ans	lebanon
+No.10
+Ques	'Stash' is a range of perfume from which Sex and The City actress?
+Ans	sarahjessicaparker
+No.11
+Ques	How many players are there in a rugby league team?
+Ans	13
+No.12
+Ques	Who voices Elsa in Frozen?
+Ans	idinamenzel
+No.13
+Ques	In tennis, what piece of fruit is found at the top of the men's Wimbledon trophy?
+Ans	pineapple
+No.14
+Ques	What does GIF stand for?
+Ans	graphicsinterchangeformat
+No.15
+Ques	In the Harry Potter book series, which character is described as having a “wild, tangled beard”?
+Ans	hagrid
+No.16
+Ques	What’s the name of the dog in The Simpsons?
+Ans	santaslittlehelper
+No.17
+Ques	What was the first single to be released by the band Oasis?
+Ans	supersonic
+No.18
+Ques	How many hearts does an octopus have?
+Ans	three
+No.19
+Ques	Eye of the Tiger is from the soundtrack of which 80s film?
+Ans	rocky3
+No.20
+Ques	In the Bible, which character is known for building an ark?
+Ans	noah
+No.21
+Ques	The Hawthorns is home to which English football club?
+Ans	westbromwichalbion
+No.22
+Ques	Who authored The Hunger Games book series?
+Ans	suzannecollins
+No.23
+Ques	What currency is used in Turkey?
+Ans	turkishlira
+No.24
+Ques	Which iconic soap character lost his first wife to electrocution by hair dryer?
+Ans	kenbarlow
+No.25
+Ques	Who originally sang Moon River?
+Ans	audreyhepburn
+No.26
+Ques	Divorced, beheaded, died, divorced, beheaded, survived – who was Henry VIII’s last wife?
+Ans	catherineparr
+No.27
+Ques	Which American rapper released The College Dropout in 2004?
+Ans	kanyewest
+No.28
+Ques	Which side of the road do people drive on in Australia?
+Ans	left
+No.29
+Ques	What is the busiest airport in Britain called?
+Ans	londonheathrow
+No.30
+Ques	When is St George's Day?
+Ans	april23

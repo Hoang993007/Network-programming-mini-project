@@ -31,6 +31,8 @@
 #include "./../inc/server.h"
 #include "./../inc/question.h"
 
+int mainThreadPipe[2];
+
 pthread_mutex_t user_passwordFileLock;
 
 pthread_t service_thread_id[MAX_SERVICE_THREAD];
@@ -44,6 +46,7 @@ accountNode* client_account[MAX_CLIENT];
 int clientConnfd[MAX_CLIENT];
 pthread_mutex_t clientConnfdLock[MAX_CLIENT];
 int connfdNoServiceRunning[MAX_CLIENT];
+
 
 //set of socket descriptors
 fd_set readfds;
@@ -145,6 +148,16 @@ int main(int argc, char *argv[])
     roomListInit();
 
     printf("%s\n", "Server are now waiting for connections...");
+
+
+    int pipeRes = pipe(mainThreadPipe);
+    if(pipeRes < 0)
+    {
+        perror("pipe ");
+        exit(1);
+    }
+
+
     while(1)
     {
         clientSocketLen = sizeof(cliaddr);
@@ -158,10 +171,16 @@ int main(int argc, char *argv[])
         FD_ZERO(&readfds);
         // Nếu add trước khi select  khởi động thfi select  sẽ không nghe nó(vì nó chưa được thêm vào readfds đốivới select
         // vì thế thì nghe cứ nghe hếtrồi sau chọn cai nào thì chọn
+
         FD_SET(listenfd, &readfds);
         if(max_readfd < listenfd)
         {
             max_readfd = listenfd;
+        }
+        FD_SET(mainThreadPipe[0], &readfds);
+        if(mainThreadPipe[0] > max_readfd)
+        {
+            max_readfd = mainThreadPipe[0]; // REALLY IMPORTANT
         }
         for(int k = 0; k < MAX_CLIENT; k++)
             if(clientConnfd[k] != -1)
@@ -187,7 +206,7 @@ int main(int argc, char *argv[])
             perror("\Error: ");
             // error occurred in select()
         }
-        //else printf ("The index of ready file descriptors (in the FD array) : %d\n", canReadFdIndex);
+        else printf ("The index of ready file descriptors (in the FD array) : %d\n", canReadFdIndex);
 
         //printf("\n#Start processing service\n\n");
 
@@ -209,6 +228,7 @@ int main(int argc, char *argv[])
             }
 
             connfd = accept(listenfd, (struct sockaddr*) &cliaddr, &clientSocketLen);
+            printf("###New connection...\n");
             // Accept a connection request -> return a File Descriptor (FD)
             if((connfd) < 0)
             {
@@ -223,9 +243,16 @@ int main(int argc, char *argv[])
 
                 pthread_t threadId;
                 pthread_create(&threadId, NULL, &newConnection, (void*)&args);
-                void *val;
-                pthread_join(threadId, &val);
+                //void *val;
+                //pthread_join(threadId, &val);
             }
+        }
+
+        if(FD_ISSET(mainThreadPipe[0], &readfds))
+        {
+            recvBytes = read(mainThreadPipe[0], recvBuff, sizeof(recvBuff));
+            recvBuff[recvBytes] = '\0';
+            printf("###New connection created successfully\n");
         }
 
         // check the status of clientConnfd(s)
@@ -235,7 +262,7 @@ int main(int argc, char *argv[])
             if(clientConnfd[k] != -1)
                 if(FD_ISSET(clientConnfd[k], &readfds))
                 {
-                    //printf("Client connection descriptor: %d are waiting to be processed\n", clientConnfd[k]);
+                    printf("Client connection descriptor: %d are waiting to be processed\n", clientConnfd[k]);
                     if(connfdNoServiceRunning[k] == 1 && clientConnfd[k] != newClientConnfd)
                     {
                         {
@@ -361,13 +388,12 @@ void* newConnection (void *args)
     Args* actual_args = args;
 
     int connfd = *(actual_args->int1);
-    struct sockaddr_in cliaddr;
-    memcpy(&cliaddr, actual_args->addr1, sizeof(cliaddr));
+    struct sockaddr_in* cliaddr = actual_args->addr1;
 
     printf("\n\nNew connection:\n");
     printf("\t1.Socket fd: %d\n", connfd);
-    printf("\t2.Ip: %s\n", inet_ntoa(cliaddr.sin_addr));
-    printf("\t3.Prot: %d\n\n", ntohs(cliaddr.sin_port));
+    printf("\t2.Ip: %s\n", inet_ntoa(cliaddr->sin_addr));
+    printf("\t3.Prot: %d\n", ntohs(cliaddr->sin_port));
 
     int i;
     for(i = 0; i < MAX_CLIENT; i++)
@@ -375,11 +401,13 @@ void* newConnection (void *args)
         if(clientConnfd[i] == -1)
         {
             clientConnfd[i] = connfd;
-            connfdNoServiceRunning[i] = 1;
+            connfdNoServiceRunning[i] = 0;
             clientNum++;
             break;
         }
     }
+    printf("\t4.Index: %d\n", i);
+    printf("\t5.Connfd: %d\n\n", connfd);
 
     char recvBuff[RECV_BUFF_SIZE];
     int sendBytes, recvBytes;
@@ -404,11 +432,11 @@ void* newConnection (void *args)
         char* userName = strtok(recvBuff, ";");
         char* password = strtok(NULL, ";");
 
-        int res = logIn (&(cliaddr.sin_addr), connfd, userName, password);
+        int res = logIn (&(cliaddr->sin_addr), connfd, userName, password);
         if(res == LOGIN_SUCCESS)
         {
             isLogedIn = 1;
-            printf("Address: %s alrealdy loged in! Username: %s", inet_ntoa(cliaddr.sin_addr), userName);
+            printf("Address: %s alrealdy loged in! Username: %s", inet_ntoa(cliaddr->sin_addr), userName);
 
             sendBytes = send_message(connfd, MESSAGE, userName);
             if(sendBytes == 0)
@@ -424,7 +452,7 @@ void* newConnection (void *args)
 
     if (isLogedIn == -1)
     {
-        printf("Address: %s did not log in!", inet_ntoa(cliaddr.sin_addr));
+        printf("Address: %s did not log in!", inet_ntoa(cliaddr->sin_addr));
         sendBytes = send_message(connfd, MESSAGE, "NEED_LOGIN");
         if(sendBytes == 0)
         {
@@ -432,6 +460,15 @@ void* newConnection (void *args)
             pthread_cancel(pthread_self());
         }
     }
+
+    int resWrite = write(mainThreadPipe[1], "NEW_CONNECTION", sizeof("NEW_CONNECTION"));
+    if(resWrite < 0)
+    {
+        perror ("write");
+        exit (2);
+    }
+
+    connfdNoServiceRunning[i] = 1;
 }
 
 void* service_register(void *args)
