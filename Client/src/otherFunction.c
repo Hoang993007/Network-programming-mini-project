@@ -25,6 +25,24 @@
 
 #define RECV_BUFF_SIZE 4096
 
+void holdScreen ()
+{
+    printf("(Hit enter to continue...)");
+    while(getchar() != '\n');
+    clearScreen ();
+}
+
+void clearScreen ()
+{
+#if defined(__linux__) || defined(__unix__) || defined(__APPLE__)
+    system("clear");
+#endif
+
+#if defined(_WIN32) || defined(_WIN64)
+    system("cls");
+#endif
+}
+
 int fgets_timeout (char* buff, int sizeOfBuff, int seconds)
 {
     fd_set          input_set;
@@ -45,7 +63,8 @@ int fgets_timeout (char* buff, int sizeOfBuff, int seconds)
     {
         //
     }
-    else if (ready_for_reading == 0) {
+    else if (ready_for_reading == 0)
+    {
         return TIMEOUT;
     }
 
@@ -87,4 +106,16 @@ int checkCharacter(char* c)
         return 1;
     else
         return 0;
+}
+
+void delay(int number_of_seconds)
+{
+    // Converting time into milli_seconds
+    int milli_seconds = 1000 * number_of_seconds;
+
+    // Storing start time
+    clock_t start_time = clock();
+
+    // looping till required time is not achieved
+    while (clock() < start_time + milli_seconds);
 }

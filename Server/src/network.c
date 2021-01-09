@@ -25,6 +25,7 @@
 #include "../inc/services.h"
 #include "../inc/accountSystem.h"
 #include "../inc/network.h"
+#include "../inc/server.h"
 
 #define SEND_ERROR 600
 #define EXCESS_TIME_LIMIT 601
@@ -82,17 +83,48 @@ int send_message(int connfd, messageType type, char* message)
     printf("Size: %lu\n", sizeof(type_message));
     sendBytes = send(connfd, type_message,  sizeof(type_message), 0);
 
-
     char recvBuff[RECV_BUFF_SIZE];
+    do{
     int recvBytes = recv(connfd, recvBuff, sizeof(recvBuff), 0);
+    if(recvBytes == 0)
+        return recvBytes;
+
     recvBuff[recvBytes] = '\0';
-    while(strcmp(recvBuff, "SEND_SUCCESS") != 0);
+    }while(strcmp(recvBuff, "SEND_SUCCESS") != 0);
 
 
     printf("Send bytes: %d\n\n", sendBytes);
 
     return SEND_SUCCESS;
 };
+
+void clientConnfdUnconnect(int connfdIndex)
+{
+    if(client_account[connfdIndex] != NULL)
+    {
+        signOut(client_account[connfdIndex]);
+        client_account[connfdIndex] = NULL;
+        printf("Client exited\n");
+    }
+
+    //-----------------------------------------------------------
+
+    printf("###Client've disconnected to server\n");
+    printf("###Closing the file descriptor of the client connection...\n");
+
+    pthread_mutex_lock(&clientDataLock);
+
+    close(clientConnfd[connfdIndex]);
+
+    clientConnfd[connfdIndex] = -1;
+
+    clientNum--;
+    connfdNoServiceRunning[connfdIndex] = 0;
+
+    pthread_mutex_unlock(&clientDataLock);
+
+    printf("###Closing completed\n");
+}
 
 void delay(int number_of_seconds)
 {

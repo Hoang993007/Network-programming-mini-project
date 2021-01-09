@@ -28,6 +28,8 @@
 #define ROOM_NAME_MAX_LENGTH 20
 #define ROOM_QUEST_NUM 3
 
+#define ROOM_ERROR_PLAYER_OUTROOM 101
+
 // ROOM ------------------------------------------------------------
 typedef struct _room
 {
@@ -44,23 +46,28 @@ typedef struct _room
     //The first player is roomhost
     accountNode* player[MAX_ROOM_PLAYER];
     int playerConnfd[MAX_ROOM_PLAYER];
-    int playerRealdy[MAX_ROOM_PLAYER];
+        int playerConnfdRSBusy[MAX_ROOM_PLAYER];
+    int playerReady[MAX_ROOM_PLAYER];
     int playerPoint[MAX_ROOM_PLAYER];
-    int numOfRealdyPlayer;
 
     fd_set readfds;
     int fd[2];
 } room;
 
 void roomListInit();
-void printRoom ();
 void* newRoom(void* args);
 void* playerEnterRoom (void* args);
 void* roomChat (void* args);
+void invitePlayer(room* room, int playerIndex, char* invitedUserName);
+void kickPlayer(room* room, char* kickedUserName);
+void newRoomHost(room* room, int newHostIndex);
 room* getRoomByID(int ID);
-void* roomPlay (void* args);
+int roomPlay (int roomID);
 int nextPlayerTurn (room* currentRoom, int startRoundPlayer, int* inTurnPlayer);
-void* quitRoom (void* args);
-void* deleteRoom (void* args);
+void quitRoom (int playerIndex, room* room);
+int numOfReadyPlayer(room* room);
+void deleteRoom (room* room);
+void printRoom ();
+void printOneRoom (int roomID);
 
 #endif

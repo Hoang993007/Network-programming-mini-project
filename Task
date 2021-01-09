@@ -22,15 +22,6 @@ Khi nào thì cần đóng file descriptor của client?
 Còn phải cho phép nó đăng nhập lại một làn nữa cơ mà
 
 
-
-Thiết lập các mutex
-
-
-Mỗi room là một thread, khi mà ko còn người thì hủy room
-có chế độ out ra khỏi room
-
-
-
 Trong thời gian quasd lâu mà khoog nhận được hồi đaps => ngắt kết nối + xóa đi kêts nối đó trong danh sách chờ
 
 nhớ là mảng chư thỉnh thoảng nó tự ghi vào dù mình ko alfm gì đến nó. kHông thể tin vào đó được

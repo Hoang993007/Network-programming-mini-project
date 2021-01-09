@@ -25,10 +25,27 @@
 #define ACTIVE_SUCCESS 21
 #define ACTIVE_ERROR 22
 
-extern int sockfd;
+typedef char userNameType[MAX_USERNAME_LENGTH] ;
+typedef char passwordType[MAX_PASS_LENGTH] ;
 
+typedef struct _client {
+    int sockfd;
+    struct sockaddr_in servaddr;
+    int SERV_PORT;
+    char SERV_ADDR[255];
+    socklen_t len;
+    pthread_t gamePlayThreadId;
+    int logedIn;
+    int isHost;
+}Client;
+
+extern Client client;
+
+char getMenuChoice();
 void signUp ();
 void login ();
-void gameRoom(int roomID, int isHost);
+void changePass ();
+void* gameRoom(void* args);
+void* gamePlay(void* args);
 
 #endif

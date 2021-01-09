@@ -23,6 +23,7 @@
 
 #include "../inc/network.h"
 #include "../inc/client.h"
+#include "../inc/otherFunction.h"
 
 char recvMessage[messageTypeNum][RECV_BUFF_SIZE];
 int messageReady[messageTypeNum];
@@ -44,8 +45,8 @@ void* recv_message(void *args)
     while(1)
     {
         FD_ZERO(&readfds);
-        FD_SET(sockfd, &readfds);
-        max_readfd = sockfd;
+        FD_SET(client.sockfd, &readfds);
+        max_readfd = client.sockfd;
         int askForSending;
         //printf("Selecting...\n");
         askForSending = select(max_readfd + 1, &readfds, NULL, NULL, NULL);
@@ -56,7 +57,7 @@ void* recv_message(void *args)
             // error occurred in select()
         }
 
-        rcvBytes = recv(sockfd, recvBuff, RECV_BUFF_SIZE, 0);
+        rcvBytes = recv(client.sockfd, recvBuff, RECV_BUFF_SIZE, 0);
 
         if(rcvBytes < 0)
         {
@@ -98,12 +99,27 @@ void* recv_message(void *args)
         else if(strcmp(receiveType, "GAME_CONTROL_DATA") == 0)
         {
             while(messageReady[GAME_CONTROL_DATA] == 1);
+            //printf("Add to message queue\n");
             strcpy(recvMessage[GAME_CONTROL_DATA], message);
             messageReady[GAME_CONTROL_DATA] = 1;
+
+            if(strcmp(recvMessage[GAME_CONTROL_DATA], "NEW_HOST") == 0)
+            {
+                //printf("#### NEW_HOST\n");
+                messageReady[GAME_CONTROL_DATA] = 0;
+                client.isHost = 1;
+            }
+
+            if(strcmp(recvMessage[GAME_CONTROL_DATA], "GAME_BREAK") == 0)
+            {
+                //printf("#### GAME_BREAK\n");
+                messageReady[GAME_CONTROL_DATA] = 0;
+                //printf("client game thread ID: %ld\n", client.gamePlayThreadId);
+                pthread_cancel(client.gamePlayThreadId);
+            }
         }
 
-        send(sockfd, "SEND_SUCCESS",  sizeof("SEND_SUCCESS"), 0);
-
+        send(client.sockfd, "SEND_SUCCESS",  sizeof("SEND_SUCCESS"), 0);
     }
 }
 

@@ -114,7 +114,6 @@ int checkPassword(accountNode* accountCheck, char* password)
     }
     else if(strcmp(password, accountCheck->password) == 0)
     {
-
         return PASS_CORRECT;
     }
     else

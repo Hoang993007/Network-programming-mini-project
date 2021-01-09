@@ -34,6 +34,7 @@ extern struct in_addr clientIP[MAX_CLIENT];
 extern accountNode* client_account[MAX_CLIENT];
 extern int clientConnfd[MAX_CLIENT];
 extern int connfdNoServiceRunning[MAX_CLIENT];
+extern pthread_mutex_t clientDataLock;
 
 typedef struct
 {
@@ -41,6 +42,18 @@ typedef struct
     int clientConnfd_index;
 }user_thread_args;
 
+typedef struct
+{
+    char* str1;
+    char* str2;
+    int* int1;
+    int* int2;
+    struct sockaddr_in* addr1;
+    struct sockaddr_in* addr2;
+}Args;
+
+int getConnfdIndex(int connfd);
+void* newConnection (void *args);
 void *service_register(void *args);
 void *service_activate(void *args);
 void *service_signin(void *args);

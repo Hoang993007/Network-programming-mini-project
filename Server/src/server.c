@@ -37,10 +37,12 @@ pthread_t service_thread_id[MAX_SERVICE_THREAD];
 int service_thread_index[MAX_SERVICE_THREAD];
 
 // clientConnfd hold ID of client connection
+pthread_mutex_t clientDataLock;
 int clientNum;
 struct in_addr clientIP[MAX_CLIENT];
 accountNode* client_account[MAX_CLIENT];
 int clientConnfd[MAX_CLIENT];
+pthread_mutex_t clientConnfdLock[MAX_CLIENT];
 int connfdNoServiceRunning[MAX_CLIENT];
 
 //set of socket descriptors
@@ -48,6 +50,16 @@ fd_set readfds;
 
 // maxfd is the highest socket ID in set of socket descriptors
 int max_readfd;
+
+int getConnfdIndex(int connfd)
+{
+    for(int i = 0; i < MAX_CLIENT; i++)
+    {
+        if(clientConnfd[i] == connfd)
+            return i;
+    }
+    return -1;
+}
 
 int main(int argc, char *argv[])
 {
@@ -66,10 +78,10 @@ int main(int argc, char *argv[])
     }
 
     int SERV_PORT;
-    int listenfd, connfd, recvBytes;
+    int listenfd, connfd, recvBytes, sendBytes;
     socklen_t clientSocketLen; // size of client socket address
     struct sockaddr_in servaddr, cliaddr; // address structure
-    char recvBuff[RECV_BUFF_SIZE + 1];
+    char recvBuff[RECV_BUFF_SIZE];
 
     SERV_PORT = atoi(argv[1]);
 
@@ -141,7 +153,7 @@ int main(int argc, char *argv[])
         // so the set need to be re-initialized before for select() again.
         // (The programming error would only be notable if from more than one socket data sall be received.)
 
-        printf("\n#Server are selecting for service request...\n\n");
+        //printf("\n#Server are selecting for service request...\n\n");
         // add fd to set and turn on the bit for fd in set
         FD_ZERO(&readfds);
         // Nếu add trước khi select  khởi động thfi select  sẽ không nghe nó(vì nó chưa được thêm vào readfds đốivới select
@@ -175,9 +187,9 @@ int main(int argc, char *argv[])
             perror("\Error: ");
             // error occurred in select()
         }
-        else printf ("The index of ready file descriptors (in the FD array) : %d\n", canReadFdIndex);
+        //else printf ("The index of ready file descriptors (in the FD array) : %d\n", canReadFdIndex);
 
-        printf("\n#Start processing service\n\n");
+        //printf("\n#Start processing service\n\n");
 
         // NOTE: the listenfd or connfd are both descriptor
         // select() check if a descriptor have an activity to exec or not. Not only use for listenfd or connfd
@@ -205,55 +217,14 @@ int main(int argc, char *argv[])
             }
             else
             {
-                printf("\n\nNew connection:\n");
-                printf("\t1.Socket fd: %d\n", connfd);
-                printf("\t2.Ip: %s\n", inet_ntoa(cliaddr.sin_addr));
-                printf("\t3.Prot: %d\n\n", ntohs(cliaddr.sin_port));
+                Args args;
+                args.int1 = &connfd;
+                args.addr1 = &cliaddr;
 
-                int i;
-                for(i = 0; i < MAX_CLIENT; i++)
-                {
-                    if(clientConnfd[i] == -1)
-                    {
-                        clientConnfd[i] = connfd;
-                        connfdNoServiceRunning[i] = 1;
-                        memcpy(&(clientIP[i]), &(cliaddr.sin_addr), sizeof(cliaddr.sin_addr) + 1);
-                        clientNum++;
-                        break;
-                    }
-                }
-
-                // confirm that connection are generated
-                send_message(connfd, MESSAGE, "CONNECT_SUCCESSFULY");
-
-                recvBytes = recv(connfd, recvBuff, sizeof(recvBuff), 0);
-
-                if(recvBuff[0] != '\0')
-                {
-                    printf("%s\n", recvBuff);
-                    char* userName = strtok(recvBuff, ";");
-                    char* password = strtok(NULL, ";");
-
-                    int res = logIn (&(cliaddr.sin_addr), connfd, userName, password);
-                    if(res == LOGIN_SUCCESS)
-                    {
-                        printf("Address: %s alrealdy loged in!", inet_ntoa(cliaddr.sin_addr));
-                        printf("Hello %s\n", userName);
-                        send_message(connfd, MESSAGE, userName);
-                        accountNode* logInAccount = accessToAccount (userName, password, &res);
-                        client_account[i] = getAccountNodeByUserName(userName);
-                    }
-                    else
-                    {
-                        printf("Address: %s did not log in!", inet_ntoa(cliaddr.sin_addr));
-                        send_message(connfd, MESSAGE, "NEED_LOGIN");
-                    }
-                }
-                else
-                {
-                    printf("Address: %s did not log in!", inet_ntoa(cliaddr.sin_addr));
-                    send_message(connfd, MESSAGE, "NEED_LOGIN");
-                }
+                pthread_t threadId;
+                pthread_create(&threadId, NULL, &newConnection, (void*)&args);
+                void *val;
+                pthread_join(threadId, &val);
             }
         }
 
@@ -261,135 +232,121 @@ int main(int argc, char *argv[])
         for(int k = 0; k < MAX_CLIENT; k++)
         {
             //after add to set, it mark as have something to read while actual not
-            if(clientConnfd[k] != -1 && connfdNoServiceRunning[k] == 1 && clientConnfd[k] != newClientConnfd)
-            {
+            if(clientConnfd[k] != -1)
                 if(FD_ISSET(clientConnfd[k], &readfds))
                 {
-                    printf("Client connection descriptor: %d\n", clientConnfd[k]);
-
-                    recvBytes = recv(clientConnfd[k], recvBuff, sizeof(recvBuff), 0);
-
-                    if(recvBytes < 0)
+                    //printf("Client connection descriptor: %d are waiting to be processed\n", clientConnfd[k]);
+                    if(connfdNoServiceRunning[k] == 1 && clientConnfd[k] != newClientConnfd)
                     {
-                        perror("Client exited\n");
-                        continue;
-                    }
-
-                    recvBuff[recvBytes] = '\0';
-
-                    if(recvBytes == 0)
-                    {
-                        printf("Client have disconnected with server\n");
-                        printf("Closing the file descriptor of the client connection...\n");
-
-                        FD_CLR(clientConnfd[k], &readfds);
-                        close(clientConnfd[k]);
-                        clientConnfd[k] = -1;
-
-                        clientNum--;
-                        connfdNoServiceRunning[k] = 1;
-                        continue;
-                    }
-
-                    printf("[%s:%d]: Service num: %s\n", inet_ntoa(cliaddr.sin_addr), ntohs(cliaddr.sin_port), recvBuff);
-
-                    int service;
-                    service = atoi(recvBuff);
-
-                    // Prepare user args for thread
-                    user_thread_args* args = (user_thread_args*)malloc(sizeof(user_thread_args));
-                    args->clientConnfd_index = k;
-
-                    int freeThread_index = -1;
-                    for(int i = 0; i < MAX_SERVICE_THREAD; i++)
-                        if(service_thread_index[i] == -1)
                         {
-                            freeThread_index = i;
-                            break;
+                            printf("Client connection descriptor: %d\n", clientConnfd[k]);
+
+                            recvBytes = recv(clientConnfd[k], recvBuff, sizeof(recvBuff), 0);
+                            if(recvBytes < 0)
+                            {
+                                perror("Client exited\n");
+                                continue;
+                            }
+
+                            recvBuff[recvBytes] = '\0';
+
+                            if(recvBytes == 0)
+                            {
+                                FD_CLR(clientConnfd[k], &readfds);
+                                clientConnfdUnconnect(k);
+                                continue;
+                            }
+
+                            printf("[%s:%d]: Service num: %s\n", inet_ntoa(cliaddr.sin_addr), ntohs(cliaddr.sin_port), recvBuff);
+
+                            int service;
+                            service = atoi(recvBuff);
+
+                            // Prepare user args for thread
+                            user_thread_args* args = (user_thread_args*)malloc(sizeof(user_thread_args));
+                            args->clientConnfd_index = k;
+
+                            int freeThread_index = -1;
+                            for(int i = 0; i < MAX_SERVICE_THREAD; i++)
+                                if(service_thread_index[i] == -1)
+                                {
+                                    freeThread_index = i;
+                                    break;
+                                }
+                            //TODO: check if too many thread
+
+
+                            args->thread_index = freeThread_index;
+
+                            // Create a thread to process the service
+                            switch(service)
+                            {
+                            case 1:
+                                printf ("%s\n", "Service 1: Register");
+                                connfdNoServiceRunning[k] = 0;
+                                pthread_create(&(service_thread_id[freeThread_index]), NULL, &service_register, (void*)args);
+                                break;
+
+                            case 2:
+                                printf ("%s\n", "Service 2: Activate account");
+                                connfdNoServiceRunning[k] = 0;
+                                //service_activate(cliaddr, clientConnfd[k]);
+                                break;
+
+                            case 3:
+                                printf ("%s\n", "Service 3: Sign in");
+                                connfdNoServiceRunning[k] = 0;
+                                pthread_create(&(service_thread_id[freeThread_index]), NULL, &service_signin, (void*)args);
+                                break;
+
+                            case 4:
+                                printf ("%s\n", "Service 4: Change password");
+
+                                if(client_account[k]->isLogined == 1)
+                                {
+                                    connfdNoServiceRunning[k] = 0;
+                                    pthread_create(&(service_thread_id[freeThread_index]), NULL, &service_changePass, (void*)args);
+                                }
+                                else printf("Not loged in\n");
+                                break;
+
+                            case 5:
+                                printf ("%s\n", "Service 5: New room");
+                                if(client_account[k]->isLogined == 1)
+                                {
+                                    connfdNoServiceRunning[k] = 0;
+                                    pthread_create(&(service_thread_id[freeThread_index]), NULL, &newRoom, (void*)args);
+                                }
+                                else printf("Not loged in\n");
+                                break;
+
+                            case 6:
+                                printf ("%s\n", "Service 6: Player enter room");
+
+                                if(client_account[k]->isLogined == 1)
+                                {
+                                    connfdNoServiceRunning[k] = 0;
+                                    pthread_create(&(service_thread_id[freeThread_index]), NULL, &playerEnterRoom, (void*)args);
+
+                                }
+                                else printf("Not loged in\n");
+                                break;
+
+                            case 7:
+                                connfdNoServiceRunning[k] = 0;
+
+                                if(client_account[k]->isLogined == 1)
+                                {
+                                    printf ("%s\n", "Service 7: Sign out");
+                                    pthread_create(&(service_thread_id[freeThread_index]), NULL, &service_signout, (void*)args);
+                                    void *val;
+                                    pthread_join(service_thread_id[freeThread_index], &val);
+                                }
+                                break;
+                            }
                         }
-                    //TODO: check if too many thread
-
-
-                    args->thread_index = freeThread_index;
-
-                    // Create a thread to process the service
-                    switch(service)
-                    {
-                    case 1:
-                        printf ("%s\n", "Service 1: Register");
-                        connfdNoServiceRunning[k] = 0;
-                        pthread_create(&(service_thread_id[freeThread_index]), NULL, &service_register, (void*)args);
-                        break;
-
-                    case 2:
-                        printf ("%s\n", "Service 2: Activate account");
-                        connfdNoServiceRunning[k] = 0;
-                        //service_activate(cliaddr, clientConnfd[k]);
-                        break;
-
-                    case 3:
-                        printf ("%s\n", "Service 3: Sign in");
-                        connfdNoServiceRunning[k] = 0;
-                        pthread_create(&(service_thread_id[freeThread_index]), NULL, &service_signin, (void*)args);
-                        break;
-
-                    case 4:
-                        printf ("%s\n", "Service 4: Change password");
-
-                        if(client_account[k]->isLogined == 1)
-                        {
-                            connfdNoServiceRunning[k] = 0;
-                            pthread_create(&(service_thread_id[freeThread_index]), NULL, &service_changePass, (void*)args);
-                        }
-                        else printf("Not loged in\n");
-                        break;
-
-                    case 5:
-                        printf ("%s\n", "Service 5: New room");
-                        if(client_account[k]->isLogined == 1)
-                        {
-                            connfdNoServiceRunning[k] = 0;
-                            pthread_create(&(service_thread_id[freeThread_index]), NULL, &newRoom, (void*)args);
-                        }
-                        else printf("Not loged in\n");
-                        break;
-
-                    case 6:
-                        printf ("%s\n", "Service 6: Player enter room");
-
-                        if(client_account[k]->isLogined == 1)
-                        {
-                            connfdNoServiceRunning[k] = 0;
-                            pthread_create(&(service_thread_id[freeThread_index]), NULL, &playerEnterRoom, (void*)args);
-
-                        }
-                        else printf("Not loged in\n");
-                        break;
-
-                    case 7:
-                        connfdNoServiceRunning[k] = 0;
-
-                        if(client_account[k]->isLogined == 1)
-                        {
-                            printf ("%s\n", "Service 7: Sign out");
-                            pthread_create(&(service_thread_id[freeThread_index]), NULL, &service_signout, (void*)args);
-                            void *val;
-                            pthread_join(service_thread_id[freeThread_index], &val);
-                        }
-
-
-                        printf("Closing the file descriptor of the client connection...\n");
-                        FD_CLR(clientConnfd[k], &readfds);
-                        close(clientConnfd[k]);
-                        clientConnfd[k] = -1;
-
-                        clientNum--;
-                        connfdNoServiceRunning[k] = 1;
-
-                        break;
                     }
                 }
-            }
         }
     }
 
@@ -397,6 +354,84 @@ int main(int argc, char *argv[])
     freeQues_ansNode();
 
     return 0;
+}
+
+void* newConnection (void *args)
+{
+    Args* actual_args = args;
+
+    int connfd = *(actual_args->int1);
+    struct sockaddr_in cliaddr;
+    memcpy(&cliaddr, actual_args->addr1, sizeof(cliaddr));
+
+    printf("\n\nNew connection:\n");
+    printf("\t1.Socket fd: %d\n", connfd);
+    printf("\t2.Ip: %s\n", inet_ntoa(cliaddr.sin_addr));
+    printf("\t3.Prot: %d\n\n", ntohs(cliaddr.sin_port));
+
+    int i;
+    for(i = 0; i < MAX_CLIENT; i++)
+    {
+        if(clientConnfd[i] == -1)
+        {
+            clientConnfd[i] = connfd;
+            connfdNoServiceRunning[i] = 1;
+            clientNum++;
+            break;
+        }
+    }
+
+    char recvBuff[RECV_BUFF_SIZE];
+    int sendBytes, recvBytes;
+
+    sendBytes = send_message(connfd, MESSAGE, "CONNECT_SUCCESSFULY");
+    if(sendBytes == 0)
+    {
+        clientConnfdUnconnect(i);
+        pthread_cancel(pthread_self());
+    }
+
+    recvBytes = recv(connfd, recvBuff, sizeof(recvBuff), 0);
+    if(recvBytes == 0)
+    {
+        clientConnfdUnconnect(i);
+        pthread_cancel(pthread_self());
+    }
+
+    int isLogedIn = -1;
+    if(recvBuff[0] != '\0')
+    {
+        char* userName = strtok(recvBuff, ";");
+        char* password = strtok(NULL, ";");
+
+        int res = logIn (&(cliaddr.sin_addr), connfd, userName, password);
+        if(res == LOGIN_SUCCESS)
+        {
+            isLogedIn = 1;
+            printf("Address: %s alrealdy loged in! Username: %s", inet_ntoa(cliaddr.sin_addr), userName);
+
+            sendBytes = send_message(connfd, MESSAGE, userName);
+            if(sendBytes == 0)
+            {
+                clientConnfdUnconnect(i);
+                pthread_cancel(pthread_self());
+            }
+
+            accountNode* logInAccount = accessToAccount (userName, password, &res);
+            client_account[i] = getAccountNodeByUserName(userName);
+        }
+    }
+
+    if (isLogedIn == -1)
+    {
+        printf("Address: %s did not log in!", inet_ntoa(cliaddr.sin_addr));
+        sendBytes = send_message(connfd, MESSAGE, "NEED_LOGIN");
+        if(sendBytes == 0)
+        {
+            clientConnfdUnconnect(i);
+            pthread_cancel(pthread_self());
+        }
+    }
 }
 
 void* service_register(void *args)
@@ -414,13 +449,19 @@ void* service_register(void *args)
 
     free(args);
 
-    int recvBytes;
-    char recvBuff[RECV_BUFF_SIZE + 1];
+    char recvBuff[RECV_BUFF_SIZE];
+    int sendBytes, recvBytes;
 
     userNameType userName;
     passwordType password;
 
     recvBytes = recv(clientConnfd[connfd_index], recvBuff, sizeof(recvBuff), 0);
+    if(recvBytes == 0)
+    {
+        clientConnfdUnconnect(connfd_index);
+        pthread_cancel(pthread_self());
+    }
+
     userName[recvBytes] = '\0';
     strcpy(userName, recvBuff);
     printf("[%s]: User name: %s\n", inet_ntoa(clientIP[connfd_index]), userName);
@@ -429,7 +470,13 @@ void* service_register(void *args)
     {
         printf("Account exist\n");
         send_message(clientConnfd[connfd_index],MESSAGE, "X");
-                connfdNoServiceRunning[connfd_index] = 1;
+        if(sendBytes == 0)
+        {
+            clientConnfdUnconnect(connfd_index);
+            pthread_cancel(pthread_self());
+        }
+
+        connfdNoServiceRunning[connfd_index] = 1;
         service_thread_index[thread_index] = -1;
         return NULL;
     }
@@ -437,9 +484,20 @@ void* service_register(void *args)
     {
         printf("Account doesn't exist\n");
         send_message(clientConnfd[connfd_index], MESSAGE, "O");
+        if(sendBytes == 0)
+        {
+            clientConnfdUnconnect(connfd_index);
+            pthread_cancel(pthread_self());
+        }
     }
 
     recvBytes = recv(clientConnfd[connfd_index], recvBuff, sizeof(recvBuff), 0);
+    if(recvBytes == 0)
+    {
+        clientConnfdUnconnect(connfd_index);
+        pthread_cancel(pthread_self());
+    }
+
     recvBuff[recvBytes] = '\0';
     strcpy(password, recvBuff);
     printf("[%s]: password: %s\n", inet_ntoa(clientIP[connfd_index]), password);
@@ -465,13 +523,19 @@ void* service_signin(void *args)
 
     free(args);
 
-    int recvBytes;
-    char recvBuff[RECV_BUFF_SIZE + 1];
+    char recvBuff[RECV_BUFF_SIZE];
+    int sendBytes, recvBytes;
 
     userNameType userName;
     passwordType password;
 
     recvBytes = recv(clientConnfd[connfd_index], recvBuff, sizeof(recvBuff), 0);
+    if(recvBytes == 0)
+    {
+        clientConnfdUnconnect(connfd_index);
+        pthread_cancel(pthread_self());
+    }
+
     userName[recvBytes] = '\0';
     strcpy(userName, recvBuff);
     printf("[%s]: User name: %s\n", inet_ntoa(clientIP[connfd_index]), userName);
@@ -479,19 +543,34 @@ void* service_signin(void *args)
     if(isExistUserName(userName) == ACCOUNT_EXIST)
     {
         printf("Account exist\n");
-        send_message(clientConnfd[connfd_index],MESSAGE, "O");
+        sendBytes = send_message(clientConnfd[connfd_index],MESSAGE, "O");
+        if(sendBytes == 0)
+        {
+            clientConnfdUnconnect(connfd_index);
+            pthread_cancel(pthread_self());
+        }
     }
     else
     {
         printf("Account doesn't exist\n");
-        send_message(clientConnfd[connfd_index], MESSAGE, "X");
-
+        sendBytes = send_message(clientConnfd[connfd_index], MESSAGE, "X");
+        if(sendBytes == 0)
+        {
+            clientConnfdUnconnect(connfd_index);
+            pthread_cancel(pthread_self());
+        }
         connfdNoServiceRunning[connfd_index] = 1;
         service_thread_index[thread_index] = -1;
         return NULL;
     }
 
     recvBytes = recv(clientConnfd[connfd_index], recvBuff, sizeof(recvBuff), 0);
+    if(recvBytes == 0)
+    {
+        clientConnfdUnconnect(connfd_index);
+        pthread_cancel(pthread_self());
+    }
+
     recvBuff[recvBytes] = '\0';
     strcpy(password, recvBuff);
     printf("[%s]: password: %s\n", inet_ntoa(clientIP[connfd_index]), password);
@@ -501,10 +580,14 @@ void* service_signin(void *args)
     if(res == LOGIN_SUCCESS)
         client_account[connfd_index] = getAccountNodeByUserName(userName);
 
-
     char sres[10];
     tostring(sres, res);
-    send_message(clientConnfd[connfd_index], MESSAGE, sres);
+    sendBytes = send_message(clientConnfd[connfd_index], MESSAGE, sres);
+    if(sendBytes == 0)
+    {
+        clientConnfdUnconnect(connfd_index);
+        pthread_cancel(pthread_self());
+    }
 
     connfdNoServiceRunning[connfd_index] = 1;
     service_thread_index[thread_index] = -1;
@@ -531,11 +614,17 @@ void* service_changePass(void *args)
     passwordType newPassword;
 
     recvBytes = recv(clientConnfd[connfd_index], recvBuff, sizeof(recvBuff), 0);
+    if(recvBytes == 0)
+    {
+        clientConnfdUnconnect(connfd_index);
+        pthread_cancel(pthread_self());
+    }
+
     recvBuff[recvBytes] = '\0';
     strcpy(newPassword, recvBuff);
-    printf("New password: %s\n", newPassword);
+    printf("## New password: %s\n", newPassword);
 
-    printf("Changing password...\n");
+    printf("## Changing password...\n");
 
     pthread_mutex_lock(&user_passwordFileLock);
     changePass(client_account[connfd_index], newPassword);
@@ -576,5 +665,9 @@ void* service_signout(void *args)
     printf("Client exited\n");
 
     client_account[connfd_index] = NULL;
-    service_thread_index[thread_index] = -1;
+
+    if(thread_index != -1)
+        service_thread_index[thread_index] = -1;
+
+    connfdNoServiceRunning[connfd_index] = 1;
 }

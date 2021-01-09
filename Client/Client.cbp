@@ -33,10 +33,18 @@
 		</Compiler>
 		<Unit filename="inc/client.h" />
 		<Unit filename="inc/errorCode.h" />
+		<Unit filename="inc/network.h" />
+		<Unit filename="inc/otherFunction.h" />
 		<Unit filename="src/client.c">
 			<Option compilerVar="CC" />
 		</Unit>
 		<Unit filename="src/errorCode.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="src/network.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="src/otherFunction.c">
 			<Option compilerVar="CC" />
 		</Unit>
 		<Extensions />
