@@ -473,7 +473,8 @@ void* gameRoom(void* args)
     {
         int becomeNewHost = 0;
         if(client.isHost == 1)
-        {   initialState = 1;
+        {
+            initialState = 1;
             printf("-----------------------------\n");
             printf("Your are now the host of the room\nKEYWORD\n\n");
             printf("+) Invite:  $INVITE<tab><userName>\n");
@@ -484,7 +485,8 @@ void* gameRoom(void* args)
         }
 
         if(client.isHost == 0)
-        {   initialState = 0;
+        {
+            initialState = 0;
             printf("-----------------------------\n");
             printf("Your are in room\nKEYWORD\n\n");
             printf("+) Invite:  $INVITE<tab><userName>\n");
@@ -500,11 +502,11 @@ void* gameRoom(void* args)
         do
         {
             if(initialState == 0)
-            if(client.isHost == 1)
-            {
-                becomeNewHost = 1;
-                break;
-            }
+                if(client.isHost == 1)
+                {
+                    becomeNewHost = 1;
+                    break;
+                }
 
             fgets(chatMessage, 500, stdin);
             chatMessage[strlen(chatMessage) - 1] = '\0';
@@ -512,8 +514,8 @@ void* gameRoom(void* args)
             if(strcmp(chatMessage, "$READY") == 0)
                 ready = 1;
             if(messageReady[GAME_CONTROL_DATA] == 1 &&
-            ((strcmp(recvMessage[GAME_CONTROL_DATA], "KICKED") == 0)
-                    || (strcmp(recvMessage[GAME_CONTROL_DATA], "OUT_ROOM") == 0)))
+                    ((strcmp(recvMessage[GAME_CONTROL_DATA], "KICKED") == 0)
+                     || (strcmp(recvMessage[GAME_CONTROL_DATA], "OUT_ROOM") == 0)))
             {
                 getMessage(GAME_CONTROL_DATA, recvBuff);
                 pthread_cancel(pthread_self());
@@ -597,7 +599,8 @@ void* gamePlay(void* args)
                 if(strcmp(recvMessage[GAME_CONTROL_DATA], "NEXT_ROUND") == 0)
                     break;
 
-                if(strcmp(recvMessage[GAME_CONTROL_DATA], "GAME_BREAK") == 0)
+                if(messageReady[GAME_CONTROL_DATA] != 1
+                        && strcmp(recvMessage[GAME_CONTROL_DATA], "GAME_BREAK") == 0)
                 {
                     getMessage(GAME_CONTROL_DATA, recvBuff);
                     printf("game break...\n");
@@ -629,6 +632,14 @@ void* gamePlay(void* args)
                     printf("Enter your choice (choice<tab>answer): \n");
 
                     timeOut = fgets_timeout (choice_answer, sizeof(choice_answer), timeOutS);
+
+                    if(messageReady[GAME_CONTROL_DATA] != 1
+                            && strcmp(recvMessage[GAME_CONTROL_DATA], "GAME_BREAK") == 0)
+                    {
+                        getMessage(GAME_CONTROL_DATA, recvBuff);
+                        printf("game break...\n");
+                    }
+
                     if(timeOut == -1)
                         break;
                     choice_answer[strlen(choice_answer) - 1] = '\0';
