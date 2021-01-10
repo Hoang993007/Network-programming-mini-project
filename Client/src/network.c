@@ -80,7 +80,7 @@ void* recv_message(void *args)
 
         if(strcmp(receiveType, "NOTIFICATION") == 0)
         {
-            printf("\nNotification: %s\n\n", message);
+            printf("\n---- Notification ----\n%s\n\n", message);
         }
         else if(strcmp(receiveType, "MESSAGE") == 0)
         {
@@ -94,7 +94,7 @@ void* recv_message(void *args)
         }
         else if(strcmp(receiveType, "GAME_CONTROL_MESSAGE") == 0)
         {
-            printf("\nGame notification:\n%s\n\n", message);
+            printf("\n---- Game notification ----\n%s\n\n", message);
         }
         else if(strcmp(receiveType, "GAME_CONTROL_DATA") == 0)
         {

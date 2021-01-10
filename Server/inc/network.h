@@ -15,6 +15,6 @@ typedef enum
 
 int send_message(int connfd, messageType type, char* message);
 void clientConnfdUnconnect(int connfdIndex);
-void delay(int number_of_seconds);
+void delay(int secs);
 
 #endif

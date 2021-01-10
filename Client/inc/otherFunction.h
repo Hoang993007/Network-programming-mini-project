@@ -18,6 +18,6 @@ void clearScreen ();
 int fgets_timeout (char* buff, int sizeOfBuff, int seconds);
 void tostring(char str[], int num);
 int checkCharacter(char* c);
-void delay(int number_of_seconds);
+void delay(int secs);
 
 #endif
