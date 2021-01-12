@@ -113,3 +113,126 @@ void delay(int secs)
         unsigned int retTime = time(0) + secs;   // Get finishing time.
     while (time(0) < retTime);               // Loop until it arrives.
 }
+
+int bigNumberChoose(int startNum, int endNum) {
+    Args numRunArgs;
+
+    numRunArgs.int1 = &startNum;
+    numRunArgs.int2 = &endNum;
+
+    pthread_t tmp_threadID;
+    pthread_create(&tmp_threadID, NULL, &numberRun, (void*)&numRunArgs);
+
+    char buff[5];
+    fgets(buff, 5, stdin);
+    pthread_cancel(numRunArgs.thread1);
+
+    clearScreen();
+    print_number(startNum);
+    holdScreen();
+    return startNum;
+}
+void* numberRun(void* args) {
+    pthread_detach(pthread_self());
+
+    int oldstate;
+    pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, &oldstate);
+    int oldtype;
+    pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, &oldtype);
+
+    Args* act_args = args;
+    int start = *act_args->int1;
+    int end = *act_args->int2;
+    act_args->thread1 = pthread_self();
+
+    srand(time(0));
+
+    clearScreen();
+    while(1)
+    {
+           int i = rand() % (end - start + 1) + start;
+            clearScreen();
+            *act_args->int1 = i;
+            print_number(i);
+            delay(0.5);
+    }
+}
+
+void print_number(int number) {
+	switch (number) {
+	case 1:
+		printf("    oo\n");
+		printf("  oooo\n");
+		printf("    oo\n");
+		printf("    oo\n");
+		printf("  oooooo\n");
+		printf("\n");
+		break;
+	case 2:
+		printf("    oooo\n");
+		printf("  oo    oo\n");
+		printf("      oo\n");
+		printf("    oo\n");
+		printf("  oooooooo\n");
+		printf("\n");
+		break;
+	case 3:
+		printf("  oooooooo\n");
+		printf("        oo\n");
+		printf("    oooooo\n");
+		printf("        oo\n");
+		printf("  oooooooo\n");
+		printf("\n");
+		break;
+	case 4:
+		printf("  oo  oo\n");
+		printf("  oo  oo\n");
+		printf("  oooooo\n");
+		printf("      oo\n");
+		printf("    oooooo\n");
+		printf("\n");
+		break;
+	case 5:
+		printf("  oooooooo\n");
+		printf("  oo\n");
+		printf("  oooooooo\n");
+		printf("        oo\n");
+		printf("  oooooooo\n");
+		printf("\n");
+		break;
+	case 6:
+		printf("  oooooooo\n");
+		printf("  oo\n");
+		printf("  oooooooo\n");
+		printf("  oo    oo\n");
+		printf("  oooooooo\n");
+		printf("\n");
+		break;
+	case 7:
+		printf("  oooooooo\n");
+		printf("        oo\n");
+		printf("      00\n");
+		printf("    oo\n");
+		printf("    oo\n");
+		printf("\n");
+		break;
+	case 8:
+		printf("  oooooooo\n");
+		printf("  oo    oo\n");
+		printf("  oooooooo\n");
+		printf("  oo    oo\n");
+		printf("  oooooooo\n");
+		printf("\n");
+		break;
+	case 9:
+		printf("  oooooooo\n");
+		printf("  oo    oo\n");
+		printf("  oooooooo\n");
+		printf("        oo\n");
+		printf("  oooooooo\n");
+		printf("\n");
+		break;
+	default:
+		break;
+	}
+}

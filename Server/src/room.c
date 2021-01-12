@@ -757,6 +757,8 @@ int roomPlay (int roomID)
 
             int roundEnd = 0;
             int startRoundPlayer = inTurnPlayer;
+            int wheelRoll = 1;
+            int turnScore;
             do
             {
                 char turnMessage[100];
@@ -776,6 +778,64 @@ int roomPlay (int roomID)
                     if(sendBytes == -1)
                     {
                         return ROOM_ERROR_PLAYER_OUTROOM;
+                    }
+                }
+
+                if(inTurnPlayer == startRoundPlayer || wheelRoll == 1)
+                {
+                    sendBytes = send_message(inTurnPlayerConnfd, GAME_CONTROL_DATA, "WHEEL_ROLL");
+                    if(sendBytes == -1)
+                    {
+                        return ROOM_ERROR_PLAYER_OUTROOM;
+                    }
+
+                    recvBytes = getMessage(inTurnPlayerConnfd, CLIENT_MESSAGE, recvBuff, sizeof(recvBuff));
+                    if(recvBytes == 0)
+                    {
+                        return ROOM_ERROR_PLAYER_OUTROOM;
+                    }
+                    wheelRoll = 0;
+                    switch(atoi(recvBuff))
+                    {
+                        case 0, 6:
+                            wheelRoll = 1;
+                            sendBytes = send_message(inTurnPlayerConnfd, GAME_CONTROL_DATA, "LOST_TURN");
+                            if(sendBytes == -1)
+                            {
+                                return ROOM_ERROR_PLAYER_OUTROOM;
+                            }
+                            break;
+                        case 4:case 3:case 1:case 8:
+                            turnScore = 20;
+                            sendBytes = send_message(inTurnPlayerConnfd, GAME_CONTROL_DATA, "TURN_SCORE_20");
+                            if(sendBytes == -1)
+                            {
+                                return ROOM_ERROR_PLAYER_OUTROOM;
+                            }
+                            break;
+                        case 2: case 9: case 7:
+                            turnScore = 50;
+                            sendBytes = send_message(inTurnPlayerConnfd, GAME_CONTROL_DATA, "TURN_SCORE_50");
+                            if(sendBytes == -1)
+                            {
+                                return ROOM_ERROR_PLAYER_OUTROOM;
+                            }
+                            break;
+                        case 5:
+                            turnScore = 100;
+                            sendBytes = send_message(inTurnPlayerConnfd, GAME_CONTROL_DATA, "TURN_SCORE_100");
+                            if(sendBytes == -1)
+                            {
+                                return ROOM_ERROR_PLAYER_OUTROOM;
+                            }
+                            break;
+                        default:
+                            sendBytes = send_message(inTurnPlayerConnfd, GAME_CONTROL_DATA, "TURN_SCORE_ERROR");
+                            if(sendBytes == -1)
+                            {
+                                return ROOM_ERROR_PLAYER_OUTROOM;
+                            }
+                            break;
                     }
                 }
 
@@ -861,7 +921,15 @@ int roomPlay (int roomID)
                             }
                         }
 
-                        //TODO: Tinh diem cho nguoi choi
+                        for(int j = 0; j < currentRoom->playerNumPreSet; j++)
+                        {
+                            if(j == inTurnPlayer)
+                            {
+                                currentRoom->playerPoint[j] += 300;
+                                break;
+                            }
+                        }
+
                         roundEnd = 1;
                         continue;
                     }
@@ -997,6 +1065,15 @@ int roomPlay (int roomID)
 
                             ansSolvedLetterNum += numOfChar;
 
+                            for(int j = 0; j < currentRoom->playerNumPreSet; j++)
+                            {
+                                if(j == inTurnPlayer)
+                                {
+                                    currentRoom->playerPoint[j] += turnScore*numOfChar;
+                                    break;
+                                }
+                            }
+
                             if(ansSolvedLetterNum == cur_ques_ans->ansLen)
                                 ques_solved = 1;
 
@@ -1014,6 +1091,10 @@ int roomPlay (int roomID)
 
             if(ques_solved != 1)
             {
+                int check = printAllScore(currentRoom);
+                if(check == ROOM_ERROR_PLAYER_OUTROOM)
+                return check;
+
                 for(int j = 0; j < currentRoom->playerNumPreSet; j++)
                 {
                     sendBytes = send_message(currentRoom->playerConnfd[j], GAME_CONTROL_DATA, "NEXT_ROUND");
@@ -1028,11 +1109,13 @@ int roomPlay (int roomID)
                     }
                 }
 
-                delay(5); // delay before next-round
+                delay(8); // delay before next-round
             }
         }
         numQuesPass++;
-
+        int check = printAllScore(currentRoom);
+        if(check == ROOM_ERROR_PLAYER_OUTROOM)
+        return check;
         for(int j = 0; j < currentRoom->playerNumPreSet; j++)
         {
             sendBytes = send_message(currentRoom->playerConnfd[j], GAME_CONTROL_DATA, "QUES_SOLVED");
@@ -1041,13 +1124,40 @@ int roomPlay (int roomID)
                 return ROOM_ERROR_PLAYER_OUTROOM;
             }
         }
-        delay(5); // delay before next-ques
+        delay(8); // delay before next-ques
 
         //TODO: thong bao diem cua nguoi choi
     }
+    int check = printAllScore(currentRoom);
+    if(check == ROOM_ERROR_PLAYER_OUTROOM)
+    return check;
+
+    int highestScore = 0;
+    int winer;
+    for(int j = 0; j < currentRoom->playerNumPreSet; j++)
+    {
+        if(currentRoom->playerPoint[j] > highestScore)
+        {
+            highestScore = currentRoom->playerPoint[j];
+            winer = j;
+        }
+
+    }
+
+    char sendMessage[SEND_BUFF_SIZE];
+
+        strcpy(sendMessage, "The winner is ");
+        strcat(sendMessage, currentRoom->player[winer]->userName);
+
 
     for(int j = 0; j < currentRoom->playerNumPreSet; j++)
     {
+            sendBytes = send_message(currentRoom->playerConnfd[j], GAME_CONTROL_MESSAGE, sendMessage);
+        if(sendBytes == -1)
+        {
+            return ROOM_ERROR_PLAYER_OUTROOM;
+        }
+
         sendBytes = send_message(currentRoom->playerConnfd[j], GAME_CONTROL_DATA, "END_GAME");
         if(sendBytes == -1)
         {
@@ -1055,6 +1165,38 @@ int roomPlay (int roomID)
         }
     }
     return 0;
+}
+
+int printAllScore(room* currentRoom)
+{
+int sendBytes;
+    for(int i = 0; i < currentRoom->playerNumPreSet; i++)
+    {
+        for(int j = 0; j < currentRoom->playerNumPreSet; j++)
+        {
+        char name[50];
+        char score[5];
+        char sendMessage[SEND_BUFF_SIZE];
+
+        strcpy(name, currentRoom->player[j]->userName);
+        if(currentRoom->playerPoint[j] == 0)
+        {
+            score[0] = '0';
+            score[1] = '\0';
+        }else tostring(score, currentRoom->playerPoint[j]);
+
+        strcpy(sendMessage, "Player ");
+        strcat(sendMessage, name);
+        strcat(sendMessage, " have ");
+        strcat(sendMessage, score);
+        strcat(sendMessage, " point");
+        sendBytes = send_message(currentRoom->playerConnfd[i], GAME_CONTROL_MESSAGE, sendMessage);
+        if(sendBytes == -1)
+        {
+            return ROOM_ERROR_PLAYER_OUTROOM;
+        }
+        }
+    }
 }
 
 int nextPlayerTurn (room* currentRoom, int startRoundPlayer, int* inTurnPlayer)

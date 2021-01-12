@@ -637,7 +637,7 @@ void soldQuestion(int quesNum, char* question, char* ans, int ansLen)
             getMessage(GAME_CONTROL_DATA, message);
             strcpy(ans, message);
             printf("Next round!\n\n");
-            delay(3);
+            delay(6);
             clearScreen();
 
             printf("Question %d: %s\n\n", quesNum, question);
@@ -653,6 +653,35 @@ void soldQuestion(int quesNum, char* question, char* ans, int ansLen)
         timeOut = 0;
 
         // TODO: show the wheel's result
+
+        int lostTurn = 0;
+        if(checkMessage_waitRecv(GAME_CONTROL_DATA, "WHEEL_ROLL") == 1 )
+        {
+            printf("Ready to roll...\n");
+            delay(3);
+            int res = bigNumberChoose(0, 9);
+            printf("You have %d\n", res);
+            char numStr[5];
+            tostring(numStr, res);
+            send_message(CLIENT_MESSAGE, numStr);
+            char messageNum[RECV_MESS_SIZE];
+            getMessage(GAME_CONTROL_DATA, messageNum);
+            if(strcmp(messageNum, "LOST_TURN") == 0)
+            {
+                lostTurn = 1;
+                printf("You've lost your turn\n");
+            }
+            else
+            puts(messageNum);
+
+            printf("Question %d: %s\n\n", quesNum, question);
+            printf("Number of character of the answer: %d\n", ansLen);
+            printf("%s\n\n", ans);
+        }
+
+        if(lostTurn == 1)
+        continue;
+
 
         getMessage(GAME_CONTROL_DATA, message);
         int timeOutS = atoi(message);
@@ -674,7 +703,7 @@ void soldQuestion(int quesNum, char* question, char* ans, int ansLen)
 
     printf("Question is solved!\n\n");
     printf("---------------------------------------------------\n");
-    delay(3);
+    delay(6);
     clearScreen();
 }
 
