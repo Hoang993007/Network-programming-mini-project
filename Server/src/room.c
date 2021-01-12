@@ -688,7 +688,7 @@ int roomPlay (int roomID)
     printf("---------------------------------------------\n\n");
 
     int avoidID[ROOM_QUEST_NUM];
-    char timeOutAmount[] = "3";
+    char timeOutAmount[] = "10";
     for(int i = 0; i < ROOM_QUEST_NUM; i++)
     {
         avoidID[i] =  -1;
@@ -794,7 +794,10 @@ int roomPlay (int roomID)
                 while (time(0) < retTime)
                 {
                     if(client_messageReady[inTurnPlayerConnfdIndex] == 1)
+                    {
                         checkTimeOut = -1;
+                        break;
+                    }
                 }
 
                 if (checkTimeOut == 1)

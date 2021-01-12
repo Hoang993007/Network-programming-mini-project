@@ -690,14 +690,16 @@ int getAnswer(char* choice_answer, int timeOutS)
 
     int tabCount = 0;
     int timeOut;
+    unsigned int retTime = time(0) + timeOutS;
+
     do
     {
         printf("Enter your choice (choice<tab>answer): \n");
-        timeOut = fgets_timeout (fromKeyBoard, sizeof(fromKeyBoard), timeOutS);
+        timeOut = fgets_timeout (fromKeyBoard, sizeof(fromKeyBoard), retTime - time(0));
 
         if(timeOut == -1)
         {
-            break;
+            return timeOut;
         }
 
         fromKeyBoard[strlen(fromKeyBoard) - 1] = '\0';
@@ -724,4 +726,5 @@ int getAnswer(char* choice_answer, int timeOutS)
     strcpy(choice_answer, choice);
     strcat(choice_answer, "-");
     strcat(choice_answer, playerAnswer);
+    return 1;
 }

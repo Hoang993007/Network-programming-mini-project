@@ -181,6 +181,7 @@ void* service_register(void *args)
     printf("[%s]: password: %s\n", inet_ntoa(clientIP[connfd_index]), password);
 
     signUp (userName, password);
+    send_message(clientConnfd[connfd_index], MESSAGE, "SIGNUP_SUCCESSFULLY");
 }
 
 void* service_signin(void *args)
