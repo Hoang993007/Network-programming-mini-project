@@ -797,7 +797,7 @@ int roomPlay (int roomID)
                     wheelRoll = 0;
                     switch(atoi(recvBuff))
                     {
-                        case 0, 6:
+                        case 0: case 6:
                             wheelRoll = 1;
                             sendBytes = send_message(inTurnPlayerConnfd, GAME_CONTROL_DATA, "LOST_TURN");
                             if(sendBytes == -1)
