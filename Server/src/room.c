@@ -25,7 +25,9 @@
 //
 #include "../inc/room.h"
 #include "../inc/accountSystem.h"
-#include "../inc/convertNumAndStr.h"
+#include "../inc/recvMessage.h"
+#include "../inc/sendMessage.h"
+#include "../inc/otherFunction.h"
 #include "../inc/network.h"
 #include "../inc/server.h"
 #include "../inc/question.h"
@@ -56,16 +58,19 @@ void* newRoom(void* args)
     //Detached thread is cleaned up automatically when it terminates
     pthread_detach(pthread_self());
 
+    int oldstate;
+    pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, &oldstate);
+    int oldtype;
+    pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, &oldtype);
+
     int connfd_index;
-    user_thread_args *actual_args = args;
-    connfd_index = actual_args->clientConnfd_index;
-    free(args);
+    connfd_index = ((serviceThread_args*)args)->clientConnfd_index;
 
     int recvBytes, sendBytes;
     char recvBuff[RECV_BUFF_SIZE];
 
     char roomName[ROOM_NAME_MAX_LENGTH];
-    recvBytes = recv(clientConnfd[connfd_index], recvBuff, sizeof(recvBuff), 0);
+    recvBytes = getMessage(clientConnfd[connfd_index], CLIENT_MESSAGE, recvBuff, sizeof(recvBuff));
     if(recvBytes == 0)
     {
         clientConnfdUnconnect(connfd_index);
@@ -77,7 +82,7 @@ void* newRoom(void* args)
     printf("[%s]: Room name: %s\n", inet_ntoa(clientIP[connfd_index]), roomName);
 
     int playerNumPreSet;
-    recvBytes = recv(clientConnfd[connfd_index], recvBuff, sizeof(recvBuff), 0);
+    recvBytes = getMessage(clientConnfd[connfd_index], CLIENT_MESSAGE, recvBuff, sizeof(recvBuff));
     if(recvBytes == 0)
     {
         clientConnfdUnconnect(connfd_index);
@@ -146,7 +151,7 @@ void* newRoom(void* args)
         char roomIDStr[5];
         tostring(roomIDStr, newRoom->roomID);
         sendBytes = send_message(clientConnfd[connfd_index], MESSAGE, roomIDStr);
-        if(sendBytes == 0)
+        if(sendBytes == -1)
         {
             clientConnfdUnconnect(connfd_index);
             pthread_cancel(pthread_self());
@@ -158,7 +163,6 @@ void* newRoom(void* args)
     else
     {
         printf("No more room can be created!\n");
-        connfdNoServiceRunning[connfd_index] = 1;
     }
 }
 
@@ -167,13 +171,13 @@ void* playerEnterRoom (void* args)
     //Detached thread is cleaned up automatically when it terminates
     pthread_detach(pthread_self());
 
+    int oldstate;
+    pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, &oldstate);
+    int oldtype;
+    pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, &oldtype);
+
     int connfd_index;
-
-    user_thread_args *actual_args = args;
-
-    connfd_index = actual_args->clientConnfd_index;
-
-    free(args);
+    connfd_index = ((serviceThread_args*)args)->clientConnfd_index;
 
     int recvBytes, sendBytes;
     char recvBuff[RECV_BUFF_SIZE + 1];
@@ -182,13 +186,12 @@ void* playerEnterRoom (void* args)
     if(roomNum == 0)
     {
         sendBytes = send_message(clientConnfd[connfd_index], MESSAGE, "NO_ROOM");
-        if(sendBytes == 0)
+        if(sendBytes == -1)
         {
             clientConnfdUnconnect(connfd_index);
             pthread_cancel(pthread_self());
         }
 
-        connfdNoServiceRunning[connfd_index] = 1;
         return NULL;
     }
 
@@ -196,7 +199,7 @@ void* playerEnterRoom (void* args)
 
     tostring(sendBuff, curRoomNum);
     sendBytes = send_message(clientConnfd[connfd_index], MESSAGE, sendBuff);
-    if(sendBytes == 0)
+    if(sendBytes == -1)
     {
         clientConnfdUnconnect(connfd_index);
         pthread_cancel(pthread_self());
@@ -210,27 +213,27 @@ void* playerEnterRoom (void* args)
 
             tostring(sendNum, roomList[i]->roomID);
             sendBytes = send_message(clientConnfd[connfd_index], MESSAGE, sendNum);
-            if(sendBytes == 0)
+            if(sendBytes == -1)
             {
                 clientConnfdUnconnect(connfd_index);
                 pthread_cancel(pthread_self());
             }
             sendBytes = send_message(clientConnfd[connfd_index], MESSAGE, roomList[i]->roomName);
-            if(sendBytes == 0)
+            if(sendBytes == -1)
             {
                 clientConnfdUnconnect(connfd_index);
                 pthread_cancel(pthread_self());
             }
             tostring(sendNum, roomList[i]->playerNumPreSet);
             sendBytes = send_message(clientConnfd[connfd_index], MESSAGE, sendNum);
-            if(sendBytes == 0)
+            if(sendBytes == -1)
             {
                 clientConnfdUnconnect(connfd_index);
                 pthread_cancel(pthread_self());
             }
             tostring(sendNum, roomList[i]->currentPlayerNum);
             sendBytes = send_message(clientConnfd[connfd_index], MESSAGE, sendNum);
-            if(sendBytes == 0)
+            if(sendBytes == -1)
             {
                 clientConnfdUnconnect(connfd_index);
                 pthread_cancel(pthread_self());
@@ -239,7 +242,7 @@ void* playerEnterRoom (void* args)
     }
 
     sendBytes = send_message(clientConnfd[connfd_index], MESSAGE, "PRINT_ROOM_END");
-    if(sendBytes == 0)
+    if(sendBytes == -1)
     {
         clientConnfdUnconnect(connfd_index);
         pthread_cancel(pthread_self());
@@ -248,7 +251,7 @@ void* playerEnterRoom (void* args)
     int enter_room_ok = 0;
     while(enter_room_ok == 0)
     {
-        recvBytes = recv(clientConnfd[connfd_index], recvBuff, sizeof(recvBuff), 0);
+        recvBytes = getMessage(clientConnfd[connfd_index], CLIENT_MESSAGE, recvBuff, sizeof(recvBuff));
         if(recvBytes == 0)
         {
             clientConnfdUnconnect(connfd_index);
@@ -288,7 +291,7 @@ void* playerEnterRoom (void* args)
                             // lỗi send_success gửi lại nhiều alnf là do cái thread enter room này nó chạy độc lập với thừng chat và thằng chat nghe thấy
                             // đúng lúc cái send bên này đang nhận lại send_success từ client
 
-                            if(sendBytes == 0)
+                            if(sendBytes == -1)
                             {
                                 clientConnfdUnconnect(connfd_index);
                                 pthread_cancel(pthread_self());
@@ -299,17 +302,20 @@ void* playerEnterRoom (void* args)
 
                             // cái này bắt buộc phải được đưa xuống cuối
                             printf("### anounce about new player\n");
-                            char index_str[5];
-                            char newMemberMessage[100];
-                            strcpy(newMemberMessage, "NEW_MEMBER-");
-                            tostring(index_str, j);
-                            strcat(newMemberMessage, index_str);
-                            int resWrite = write(roomList[i]->fd[1], newMemberMessage, sizeof(newMemberMessage));
-                            if(resWrite < 0)
+
+                           char newMemberMessage[100];
+                            strcpy(newMemberMessage, "Room have a new member name ");
+                            strcat(newMemberMessage, roomList[i]->player[j]->userName);
+
+                        for(int t = 0; t < roomList[i]->playerNumPreSet; t++)
+                        {
+                            if(roomList[i]->playerConnfd[t] > -1 && t != j)
                             {
-                                perror ("write");
-                                exit (2);
+                                roomList[i]->playerConnfdRSBusy[t] = 1;
+                                send_message(roomList[i]->playerConnfd[t], GAME_CONTROL_MESSAGE, newMemberMessage);
+                                roomList[i]->playerConnfdRSBusy[t] = 0;
                             }
+                        }
 
                             break;
                         }
@@ -319,7 +325,7 @@ void* playerEnterRoom (void* args)
                 {
                     printf("Room full\n");
                     sendBytes = send_message(clientConnfd[connfd_index], MESSAGE, "ROOM_FULL");
-                    if(sendBytes == 0)
+                    if(sendBytes == -1)
                     {
                         clientConnfdUnconnect(connfd_index);
                         pthread_cancel(pthread_self());
@@ -332,7 +338,7 @@ void* playerEnterRoom (void* args)
         if(i == MAX_ROOM)
         {
             sendBytes = send_message(clientConnfd[connfd_index], MESSAGE, "ROOM_NOT_FOUND");
-            if(sendBytes == 0)
+            if(sendBytes == -1)
             {
                 clientConnfdUnconnect(connfd_index);
                 pthread_cancel(pthread_self());
@@ -356,6 +362,11 @@ void* roomChat (void* args)
     //Detached thread is cleaned up automatically when it terminates
     pthread_detach(pthread_self());
 
+    int oldstate;
+    pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, &oldstate);
+    int oldtype;
+    pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, &oldtype);
+
     int roomID = *((int*)args);
 
     printf("Starting room...\nRoom chat...\n\n");
@@ -377,8 +388,6 @@ void* roomChat (void* args)
     }
 
     int recvBytes, sendBytes;
-    int max_readfd;
-    fd_set readfds;
 
     int check = 0;
     do
@@ -386,89 +395,32 @@ void* roomChat (void* args)
         while(currentRoom->currentPlayerNum != currentRoom->playerNumPreSet
                 || numOfReadyPlayer(currentRoom) != currentRoom->playerNumPreSet)
         {
-            // PREPARE FOR SELECTING
-            FD_ZERO(&(currentRoom->readfds));
             for(int i = 0; i < currentRoom->playerNumPreSet; i++)
             {
-                if(currentRoom->playerConnfd[i] != -1 && currentRoom->playerConnfdRSBusy[i] == 0)
+                if(currentRoom->playerConnfd[i] > -1)
                 {
-                    FD_SET(currentRoom->playerConnfd[i], &(currentRoom->readfds));
-                    if(currentRoom->playerConnfd[i] > max_readfd)
-                        max_readfd = currentRoom->playerConnfd[i];
-                }
-            }
-            FD_SET(currentRoom->fd[0], &(currentRoom->readfds));
-            if(currentRoom->fd[0] > max_readfd)
-            {
-                max_readfd = currentRoom->fd[0]; // REALLY IMPORTANT
-            }
-
-            int askForRecv = select(max_readfd + 1, &(currentRoom->readfds), NULL, NULL, NULL);
-
-            if(askForRecv == -1)
-            {
-                perror("Error");
-                exit(0);
-            }
-
-            // START TO PROCESS
-            int newConnfd = -1;
-            if(FD_ISSET(currentRoom->fd[0], &(currentRoom->readfds)))
-            {
-                recvBytes = read(currentRoom->fd[0], recvBuff, sizeof(recvBuff));
-                recvBuff[recvBytes] = '\0';
-                char* orderType = strtok(recvBuff, "-");
-
-                if(strcmp(orderType, "NEW_MEMBER") == 0)
-                {
-                    char* indexStr = strtok(NULL, "-");
-                    int newMemberIndex = atoi(indexStr);
-                    newConnfd = currentRoom->playerConnfd[newMemberIndex];
-                    char newMemberMessage[100];
-                    strcpy(newMemberMessage, "Room have a new member name ");
-                    strcat(newMemberMessage, currentRoom->player[newMemberIndex]->userName);
-
-                    for(int i = 0; i < currentRoom->playerNumPreSet; i++)
+                    int connfd_index = getConnfdIndex(currentRoom->playerConnfd[i]);
+                    if(connfd_index == -1)
                     {
-                        if(currentRoom->player[i] != NULL && i != newMemberIndex)
-                        {
-                            currentRoom->playerConnfdRSBusy[i] = 1;
-                            send_message(currentRoom->playerConnfd[i], GAME_CONTROL_MESSAGE, newMemberMessage);
-                            currentRoom->playerConnfdRSBusy[i] = 0;
-                        }
-                    }
-                }
-            }
-
-            //printf("#####%d\n", newConnfd);
-            for(int i = 0; i < currentRoom->playerNumPreSet; i++)
-            {
-                if(currentRoom->playerConnfd[i] != -1 && currentRoom->playerConnfd[i] != newConnfd)
-                    if(FD_ISSET(currentRoom->playerConnfd[i], &(currentRoom->readfds)))
-                    {
-                        printf("#####Processing client connfd %d\n", currentRoom->playerConnfd[i]);
-                        int connfd_index = getConnfdIndex(currentRoom->playerConnfd[i]);
-                        recvBytes = recv(currentRoom->playerConnfd[i], recvBuff, sizeof(recvBuff), 0);
-                        if(recvBytes == 0)
-                        {
-                            for(int j = 0; j < currentRoom->playerNumPreSet; j++)
+                        for(int j = 0; j < currentRoom->playerNumPreSet; j++)
                                 if(j != i && currentRoom->playerConnfd[j] != -1)
                                 {
                                     char messageTmp[100];
                                     strcpy(messageTmp, "Cannot connect to ");
-                                    strcat(messageTmp, currentRoom->player[i]->userName);
+                                    strcat(messageTmp, clientName[connfd_index]);
                                     send_message(currentRoom->playerConnfd[j], NOTIFICATION, messageTmp);
                                 }
-                            clientConnfdUnconnect(connfd_index);
+                            printOneRoom(roomID);
                             quitRoom(i, currentRoom);
                             if(i == 0)
                                 newRoomHost(currentRoom, -1);
-                            printOneRoom(roomID);
                             continue;
-                        }
+                    }
 
-                        recvBuff[recvBytes] = '\0';
-
+                    if(client_messageReady[connfd_index] == 1)
+                    {
+                        printf("##### Message form client connfd %d\n", currentRoom->playerConnfd[i]);
+                        getMessage(currentRoom->playerConnfd[i], CLIENT_MESSAGE, recvBuff, sizeof(recvBuff));
 
                         if(recvBuff[0] != '$')
                         {
@@ -490,6 +442,7 @@ void* roomChat (void* args)
                             char* keyWord = strtok(recvBuff, "\t");
                             if(strcmp(keyWord, "$INVITE") == 0)
                             {
+                                printf("### chat message invite request\n");
                                 char* userName = strtok(NULL, "\t");
                                 invitePlayer(currentRoom, i, userName);
                             }
@@ -513,6 +466,7 @@ void* roomChat (void* args)
                                 currentRoom->playerReady[i] = 1;
                                 send_message(currentRoom->playerConnfd[i], NOTIFICATION, "You've hit ready");
                                 printOneRoom(currentRoom->roomID);
+                                send_message(currentRoom->playerConnfd[i], GAME_CONTROL_DATA, "READY_SUCCESSFULLY");
                             }
                             else if(strcmp(keyWord, "$QUIT") == 0)
                             {
@@ -557,8 +511,13 @@ void* roomChat (void* args)
                                 }
                                 printOneRoom(currentRoom->roomID);
                             }
+                            else
+                            {
+                                send_message(currentRoom->playerConnfd[i], GAME_CONTROL_MESSAGE, "Incorrect command");
+                            }
                         }
                     }
+                }
             }
         }
 
@@ -622,9 +581,6 @@ void quitRoom (int playerIndex, room* room)
 {
     // tra tu do cho cong
     printf("### quit room for player %d\n", playerIndex);
-    for(int i = 0; i < MAX_CLIENT; i++)
-        if(clientConnfd[i] == room->playerConnfd[playerIndex])
-            connfdNoServiceRunning[i] = 1;
 
     if(room->currentPlayerNum > 1)
     {
@@ -645,6 +601,8 @@ void deleteRoom (room* room)
 {
     printf("####Delete room with ID: %d\n", room->roomID);
 
+    pthread_t roomThreadID = room->room_thread_id;
+
     for(int i = 0; i < MAX_ROOM; i++)
         if(roomList[i] != NULL && roomList[i]->roomID == room->roomID)
         {
@@ -653,7 +611,7 @@ void deleteRoom (room* room)
         }
 
     roomNum--;
-    pthread_cancel(room->room_thread_id);
+    pthread_cancel(roomThreadID);
 }
 
 void newRoomHost(room* room, int newHostIndex)
@@ -701,7 +659,7 @@ int roomPlay (int roomID)
     //Detached thread is cleaned up automatically when it terminates
     pthread_detach(pthread_self());
 
-    printRoom(roomID);
+    printOneRoom(roomID);
     room* currentRoom = getRoomByID(roomID);
 
     char recvBuff[RECV_BUFF_SIZE + 1];
@@ -714,7 +672,7 @@ int roomPlay (int roomID)
     for(int j = 0; j < currentRoom->playerNumPreSet; j++)
     {
         sendBytes = send_message(currentRoom->playerConnfd[j], MESSAGE, "GAME_START");
-        if(sendBytes == 0)
+        if(sendBytes == -1)
         {
             return ROOM_ERROR_PLAYER_OUTROOM;
         }
@@ -730,7 +688,7 @@ int roomPlay (int roomID)
     printf("---------------------------------------------\n\n");
 
     int avoidID[ROOM_QUEST_NUM];
-    char timeOutAmount[] = "20";
+    char timeOutAmount[] = "3";
     for(int i = 0; i < ROOM_QUEST_NUM; i++)
     {
         avoidID[i] =  -1;
@@ -745,7 +703,7 @@ int roomPlay (int roomID)
 
 
     sendBytes = send_message(currentRoom->player[inTurnPlayer]->loginedClientConnfd, GAME_CONTROL_MESSAGE, "You go first\n");
-    if(sendBytes == 0)
+    if(sendBytes == -1)
     {
         return ROOM_ERROR_PLAYER_OUTROOM;
     }
@@ -777,19 +735,15 @@ int roomPlay (int roomID)
         char ansLenStr[5];
         tostring(ansLenStr, cur_ques_ans->ansLen);
 
-        char curAns[100];
-        strcpy(curAns, "Current answer: ");
-        strcat(curAns, curQuesAns);
-
         for(int j = 0; j < currentRoom->playerNumPreSet; j++)
         {
             sendBytes = send_message(currentRoom->playerConnfd[j], GAME_CONTROL_DATA, cur_ques_ans->ques);
-            if(sendBytes == 0)
+            if(sendBytes == -1)
             {
                 return ROOM_ERROR_PLAYER_OUTROOM;
             }
             sendBytes = send_message(currentRoom->playerConnfd[j], GAME_CONTROL_DATA, ansLenStr);
-            if(sendBytes == 0)
+            if(sendBytes == -1)
             {
                 return ROOM_ERROR_PLAYER_OUTROOM;
             }
@@ -803,13 +757,13 @@ int roomPlay (int roomID)
 
             int roundEnd = 0;
             int startRoundPlayer = inTurnPlayer;
-            fd_set readfd_inturnPlayer;
             do
             {
                 char turnMessage[100];
                 int inTurnPlayerConnfd = currentRoom->player[inTurnPlayer]->loginedClientConnfd;
+                int inTurnPlayerConnfdIndex = getConnfdIndex(inTurnPlayerConnfd);
                 sendBytes = send_message(inTurnPlayerConnfd, GAME_CONTROL_DATA, "YOUR_TURN");
-                if(sendBytes == 0)
+                if(sendBytes == -1)
                 {
                     return ROOM_ERROR_PLAYER_OUTROOM;
                 }
@@ -819,42 +773,39 @@ int roomPlay (int roomID)
                 {
                     if(j != inTurnPlayer)
                         sendBytes = send_message(currentRoom->playerConnfd[j], GAME_CONTROL_MESSAGE, turnMessage);
-                    if(sendBytes == 0)
+                    if(sendBytes == -1)
                     {
                         return ROOM_ERROR_PLAYER_OUTROOM;
                     }
                 }
 
                 sendBytes = send_message(inTurnPlayerConnfd, GAME_CONTROL_DATA, timeOutAmount);
-                if(sendBytes == 0)
+                if(sendBytes == -1)
                 {
                     return ROOM_ERROR_PLAYER_OUTROOM;
                 }
 
-                FD_ZERO(&readfd_inturnPlayer);
-                FD_SET(inTurnPlayerConnfd, &readfd_inturnPlayer);
                 int n = inTurnPlayerConnfd;
-                struct timeval tv;
-                tv.tv_sec = atoi(timeOutAmount) + 5;
+
+                int checkTimeOut = 1;
+                unsigned int retTime = time(0) + atoi(timeOutAmount) + 5;
                 printf("### waiting for player's answer...\n");
-                int rv = select(n + 1, &readfd_inturnPlayer, NULL, NULL, &tv);
-                if (rv == -1)
+
+                while (time(0) < retTime)
                 {
-                    perror("Error: ");
+                    if(client_messageReady[inTurnPlayerConnfdIndex] == 1)
+                        checkTimeOut = -1;
                 }
-                else if (rv == 0)
+
+                if (checkTimeOut == 1)
                 {
-//                    sendBytes = send_message(inTurnPlayerConnfd, GAME_CONTROL_MESSAGE, "Time out");
-//                    if(sendBytes == 0)
-//                    {
-//                        return ROOM_ERROR_PLAYER_OUTROOM;
-//                    }
+                    printf("###Time out\n");
                     roundEnd = nextPlayerTurn(currentRoom, startRoundPlayer, &inTurnPlayer);
                     continue;
                 }
 
                 printf("### player answered...\n");
-                recvBytes = recv(inTurnPlayerConnfd, recvBuff, sizeof(recvBuff), 0);
+                recvBytes = getMessage(inTurnPlayerConnfd, CLIENT_MESSAGE, recvBuff, sizeof(recvBuff));
                 if(recvBytes == 0)
                 {
                     return ROOM_ERROR_PLAYER_OUTROOM;
@@ -881,12 +832,16 @@ int roomPlay (int roomID)
                     {
                         if(j != inTurnPlayer)
                             sendBytes = send_message(currentRoom->playerConnfd[j], GAME_CONTROL_MESSAGE, inTurnPlayerAns);
+                                                    if(sendBytes == -1)
+                        {
+                            return ROOM_ERROR_PLAYER_OUTROOM;
+                        }
                     }
 
                     if(strcmp(playerAnswer, cur_ques_ans->ans) == 0)
                     {
                         sendBytes = send_message(inTurnPlayerConnfd, GAME_CONTROL_MESSAGE, "Congratulation!");
-                        if(sendBytes == 0)
+                        if(sendBytes == -1)
                         {
                             return ROOM_ERROR_PLAYER_OUTROOM;
                         }
@@ -897,7 +852,7 @@ int roomPlay (int roomID)
                         {
                             if(j != inTurnPlayer)
                                 sendBytes = send_message(currentRoom->playerConnfd[j], GAME_CONTROL_MESSAGE, inTurnPlayerAns);
-                            if(sendBytes == 0)
+                            if(sendBytes == -1)
                             {
                                 return ROOM_ERROR_PLAYER_OUTROOM;
                             }
@@ -910,7 +865,7 @@ int roomPlay (int roomID)
                     else
                     {
                         sendBytes = send_message(inTurnPlayerConnfd, GAME_CONTROL_MESSAGE, "Wrong!");
-                        if(sendBytes == 0)
+                        if(sendBytes == -1)
                         {
                             return ROOM_ERROR_PLAYER_OUTROOM;
                         }
@@ -919,7 +874,7 @@ int roomPlay (int roomID)
                         {
                             if(j != inTurnPlayer)
                                 sendBytes = send_message(currentRoom->playerConnfd[j], GAME_CONTROL_MESSAGE, inTurnPlayerAns);
-                            if(sendBytes == 0)
+                            if(sendBytes == -1)
                             {
                                 return ROOM_ERROR_PLAYER_OUTROOM;
                             }
@@ -933,7 +888,7 @@ int roomPlay (int roomID)
                     {
                         if(j != inTurnPlayer)
                             sendBytes = send_message(currentRoom->playerConnfd[j], GAME_CONTROL_MESSAGE, turnMessage);
-                        if(sendBytes == 0)
+                        if(sendBytes == -1)
                         {
                             return ROOM_ERROR_PLAYER_OUTROOM;
                         }
@@ -950,7 +905,7 @@ int roomPlay (int roomID)
                     {
                         if(j != inTurnPlayer)
                             sendBytes = send_message(currentRoom->playerConnfd[j], GAME_CONTROL_MESSAGE, inTurnPlayerAns);
-                        if(sendBytes == 0)
+                        if(sendBytes == -1)
                         {
                             return ROOM_ERROR_PLAYER_OUTROOM;
                         }
@@ -969,7 +924,7 @@ int roomPlay (int roomID)
                     if(checkIfGuessed == 1)
                     {
                         sendBytes = send_message(inTurnPlayerConnfd, GAME_CONTROL_MESSAGE, "You've guessed the same character which is guessed before");
-                        if(sendBytes == 0)
+                        if(sendBytes == -1)
                         {
                             return ROOM_ERROR_PLAYER_OUTROOM;
                         }
@@ -988,7 +943,7 @@ int roomPlay (int roomID)
                         if(numOfChar == 0)
                         {
                             sendBytes = send_message(inTurnPlayerConnfd, GAME_CONTROL_MESSAGE, "Try again later");
-                            if(sendBytes == 0)
+                            if(sendBytes == -1)
                             {
                                 return ROOM_ERROR_PLAYER_OUTROOM;
                             }
@@ -997,7 +952,7 @@ int roomPlay (int roomID)
                             {
                                 if(j != inTurnPlayer)
                                     sendBytes = send_message(currentRoom->playerConnfd[j], GAME_CONTROL_MESSAGE, inTurnPlayerAns);
-                                if(sendBytes == 0)
+                                if(sendBytes == -1)
                                 {
                                     return ROOM_ERROR_PLAYER_OUTROOM;
                                 }
@@ -1007,7 +962,7 @@ int roomPlay (int roomID)
                         {
                             char guessCharRes[100];
                             sendBytes = send_message(inTurnPlayerConnfd, GAME_CONTROL_MESSAGE, "Congratulation!");
-                            if(sendBytes == 0)
+                            if(sendBytes == -1)
                             {
                                 return ROOM_ERROR_PLAYER_OUTROOM;
                             }
@@ -1018,7 +973,7 @@ int roomPlay (int roomID)
                             strcat(guessCharRes, " letter ");
                             strcat(guessCharRes, character);
                             sendBytes = send_message(inTurnPlayerConnfd, GAME_CONTROL_MESSAGE, guessCharRes);
-                            if(sendBytes == 0)
+                            if(sendBytes == -1)
                             {
                                 return ROOM_ERROR_PLAYER_OUTROOM;
                             }
@@ -1031,7 +986,7 @@ int roomPlay (int roomID)
                             {
                                 if(j != inTurnPlayer)
                                     sendBytes = send_message(currentRoom->playerConnfd[j], GAME_CONTROL_MESSAGE, inTurnPlayerAns);
-                                if(sendBytes == 0)
+                                if(sendBytes == -1)
                                 {
                                     return ROOM_ERROR_PLAYER_OUTROOM;
                                 }
@@ -1058,13 +1013,13 @@ int roomPlay (int roomID)
             {
                 for(int j = 0; j < currentRoom->playerNumPreSet; j++)
                 {
-                    sendBytes = send_message(currentRoom->playerConnfd[j], GAME_CONTROL_MESSAGE, curQuesAns);
-                    if(sendBytes == 0)
+                    sendBytes = send_message(currentRoom->playerConnfd[j], GAME_CONTROL_DATA, "NEXT_ROUND");
+                    if(sendBytes == -1)
                     {
                         return ROOM_ERROR_PLAYER_OUTROOM;
                     }
-                    sendBytes = send_message(currentRoom->playerConnfd[j], GAME_CONTROL_DATA, "NEXT_ROUND");
-                    if(sendBytes == 0)
+                    sendBytes = send_message(currentRoom->playerConnfd[j], GAME_CONTROL_DATA, curQuesAns);
+                    if(sendBytes == -1)
                     {
                         return ROOM_ERROR_PLAYER_OUTROOM;
                     }
@@ -1078,7 +1033,7 @@ int roomPlay (int roomID)
         for(int j = 0; j < currentRoom->playerNumPreSet; j++)
         {
             sendBytes = send_message(currentRoom->playerConnfd[j], GAME_CONTROL_DATA, "QUES_SOLVED");
-            if(sendBytes == 0)
+            if(sendBytes == -1)
             {
                 return ROOM_ERROR_PLAYER_OUTROOM;
             }
@@ -1091,7 +1046,7 @@ int roomPlay (int roomID)
     for(int j = 0; j < currentRoom->playerNumPreSet; j++)
     {
         sendBytes = send_message(currentRoom->playerConnfd[j], GAME_CONTROL_DATA, "END_GAME");
-        if(sendBytes == 0)
+        if(sendBytes == -1)
         {
             return ROOM_ERROR_PLAYER_OUTROOM;
         }
@@ -1125,7 +1080,7 @@ int numOfReadyPlayer(room* room)
 
 
 
-void printRoom ()
+void printAllRoom()
 {
     printf("-----------------------------\n");
     printf("Room info\n\n");

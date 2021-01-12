@@ -1,0 +1,14 @@
+STRTOK:
+
+	STATIC REFERENCE:
+		strtok duy trì một tham chiếu tĩnh, nội bộ trỏ đến mã thông báo có sẵn tiếp theo trong chuỗi; 
+		nếu bạn truyền cho nó một con trỏ NULL, nó sẽ hoạt động từ tham chiếu nội bộ đó. 
+
+		Đây là lý do strtok không được đăng ký lại; 
+		ngay sau khi bạn vượt qua nó một con trỏ mới, tham chiếu nội bộ cũ đó sẽ bị ghi đè. 
+
+Conclusion: 
+	Hàm strtok ghi lại chuỗi bạn cung cấp lần đầu tiên khi bạn gọi nó. 
+	=> DANGEROUS: Điều này thực sự nguy hiểm cho các ứng dụng đa luồng
+
+	=> Với đa luồng: dùng strtok_r

@@ -24,36 +24,13 @@
 //
 #include <time.h>
 
-#define LISTENQ 3 /* the number of pending connections that can be queued for a server socket. (call waiting allowance */
-
-#define MAX_CLIENT 3
-#define MAX_SERVICE_THREAD 10
-
-extern int clientNum;
-extern struct in_addr clientIP[MAX_CLIENT];
-extern accountNode* client_account[MAX_CLIENT];
-extern int clientConnfd[MAX_CLIENT];
-extern int connfdNoServiceRunning[MAX_CLIENT];
-extern pthread_mutex_t clientDataLock;
-
 typedef struct
 {
-    int thread_index;
     int clientConnfd_index;
-}user_thread_args;
+}serviceThread_args;
 
-typedef struct
-{
-    char* str1;
-    char* str2;
-    int* int1;
-    int* int2;
-    struct sockaddr_in* addr1;
-    struct sockaddr_in* addr2;
-}Args;
-
-int getConnfdIndex(int connfd);
 void* newConnection (void *args);
+int serviceOrder(int service, int clientConnfd_index);
 void *service_register(void *args);
 void *service_activate(void *args);
 void *service_signin(void *args);

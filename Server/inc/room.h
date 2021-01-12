@@ -68,7 +68,7 @@ int nextPlayerTurn (room* currentRoom, int startRoundPlayer, int* inTurnPlayer);
 void quitRoom (int playerIndex, room* room);
 int numOfReadyPlayer(room* room);
 void deleteRoom (room* room);
-void printRoom ();
+void printAllRoom ();
 void printOneRoom (int roomID);
 
 #endif

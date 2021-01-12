@@ -26,80 +26,23 @@
 #include "../inc/accountSystem.h"
 #include "../inc/network.h"
 #include "../inc/server.h"
+#include "../inc/recvMessage.h"
 
-#define SEND_ERROR 600
-#define EXCESS_TIME_LIMIT 601
-#define SEND_SUCCESS 602
+char messageEndMarker[5] = "|";
 
-int send_message(int connfd, messageType type, char* message)
+int getConnfdIndex(int connfd)
 {
-    int sendBytes;
-
-    fd_set writefds;
-    int max_writefd;
-
-    FD_ZERO(&writefds);
-    FD_SET(connfd, &writefds);
-    max_writefd = connfd;
-
-    int askForSending = select(max_writefd + 1, NULL, &writefds, NULL, NULL);
-
-    if(askForSending == -1)
+    for(int i = 0; i < MAX_CLIENT; i++)
     {
-        return SEND_ERROR;
+        if(clientConnfd[i] == connfd)
+            return i;
     }
-    else if(askForSending == 0)
-    {
-        return EXCESS_TIME_LIMIT;
-    }
-
-    printf("\n\nSend message to file discriptor %d\n", connfd);
-    printf("Message type: %d\n", type);
-    char type_message[500];
-
-    if(type == NOTIFICATION)
-    {
-        strcpy(type_message, "NOTIFICATION-");
-    }
-    else if(type == MESSAGE)
-    {
-        strcpy(type_message, "MESSAGE-");
-    }
-    else if(type == CHAT_MESSAGE)
-    {
-        strcpy(type_message, "CHAT_MESSAGE-");
-    }
-    else if(type == GAME_CONTROL_MESSAGE)
-    {
-        strcpy(type_message, "GAME_CONTROL_MESSAGE-");
-    }
-    else if(type == GAME_CONTROL_DATA)
-    {
-        strcpy(type_message, "GAME_CONTROL_DATA-");
-    }
-
-    strcat(type_message, message);
-    printf("Message: %s\n", type_message);
-    printf("Size: %lu\n", sizeof(type_message));
-    sendBytes = send(connfd, type_message,  sizeof(type_message), 0);
-
-    char recvBuff[RECV_BUFF_SIZE];
-    do{
-    int recvBytes = recv(connfd, recvBuff, sizeof(recvBuff), 0);
-    if(recvBytes == 0)
-        return recvBytes;
-
-    recvBuff[recvBytes] = '\0';
-    }while(strcmp(recvBuff, "SEND_SUCCESS") != 0);
-
-
-    printf("Send bytes: %d\n\n", sendBytes);
-
-    return SEND_SUCCESS;
-};
+    return -1;
+}
 
 void clientConnfdUnconnect(int connfdIndex)
 {
+    // Sign out
     if(client_account[connfdIndex] != NULL)
     {
         signOut(client_account[connfdIndex]);
@@ -109,25 +52,18 @@ void clientConnfdUnconnect(int connfdIndex)
 
     //-----------------------------------------------------------
 
-    printf("###Client've disconnected to server\n");
+    printf("### Client've disconnected to server\n");
     printf("###Closing the file descriptor of the client connection...\n");
 
-    pthread_mutex_lock(&clientDataLock);
+    pthread_mutex_lock(&clientFDDataLock);
 
     close(clientConnfd[connfdIndex]);
 
     clientConnfd[connfdIndex] = -1;
 
     clientNum--;
-    connfdNoServiceRunning[connfdIndex] = 0;
 
-    pthread_mutex_unlock(&clientDataLock);
+    pthread_mutex_unlock(&clientFDDataLock);
 
     printf("###Closing completed\n");
-}
-
-void delay(int secs)
-{
-        unsigned int retTime = time(0) + secs;   // Get finishing time.
-    while (time(0) < retTime);               // Loop until it arrives.
 }

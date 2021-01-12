@@ -1,5 +1,3 @@
-// To candle thread, the thread must be running
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -28,20 +26,16 @@
 #include "../inc/network.h"
 #include "../inc/otherFunction.h"
 
-#define MAX_USERNAME_LENGTH 50
-#define MAX_PASS_LENGTH 20
-
-#define ROOM_QUEST_NUM 2
-
 Client client;
 
 int main(int argc, char *argv[])
 {
     clearScreen();
+
     client.SERV_PORT = atoi(argv[2]);
     strcpy(client.SERV_ADDR, argv[1]);
 
-    char recvBuff[RECV_BUFF_SIZE];
+    char recvMess[RECV_MESS_SIZE];
 
     //Step 1: Construct socket
     printf("%s\n", "Constructing soket...");
@@ -70,34 +64,37 @@ int main(int argc, char *argv[])
     pthread_create(&recv_messageThreadId, NULL, &recv_message, NULL);
 
     //Step 3: Communicate with server
-    getMessage(MESSAGE, recvBuff);
-    printf("From server: %s\n", recvBuff);
+
+    //Check connection
+    printf("Check connection...\n");
+    getMessage(MESSAGE, recvMess);
+    printf("From server: %s\n", recvMess);
     printf("-----------------------------\n\n");
     holdScreen();
 
-    send(client.sockfd, "hust;d123", sizeof("hust;123"), 0);
-    getMessage(MESSAGE, recvBuff);
-    if(strcmp(recvBuff, "NEED_LOGIN") == 0)
+    //TODO: read form file
+    send_message(CLIENT_MESSAGE, "hust;d123");
+    getMessage(MESSAGE, recvMess);
+    if(strcmp(recvMess, "NEED_LOGIN") == 0)
     {
         printf("You did not loged in!\nPlease login or create a new account before playing!\n\n\n");
         client.logedIn = 0;
     }
     else
     {
-        printf("Welcome back! %s\n", recvBuff);
+        printf("Welcome back! %s\n", recvMess);
         client.logedIn = 1;
     }
     holdScreen();
 
-    client.isHost = 0;
+    client.isHost = -1;
 
-    int programTerminate = 0;
+    int programTerminate = -1;
     char choice;
     char service[5];
     do
     {
         Args args;
-        pthread_t gameRoomThreadID;
         void *val;
         choice = getMenuChoice();
         clearScreen();
@@ -116,142 +113,43 @@ int main(int argc, char *argv[])
 
         case '3':
             printf("CHANGE PASSWORD\n\n");
-            if(client.logedIn == 0)
+            if(client.logedIn != 1)
             {
                 printf("You have not logged in yet\n");
                 holdScreen();
                 break;
             }
+
             changePass();
             break;
 
         case '4':
             printf("NEW ROOM\n\n");
-            if(client.logedIn == 0)
+            if(client.logedIn != 1)
             {
                 printf("You have not logged in yet\n");
                 holdScreen();
                 break;
             }
 
-            strcpy(service, "5");
-            send(client.sockfd, service, sizeof(service), 0);
-
-            char roomName[255];
-            printf("Room name: ");
-            scanf("%s", roomName);
-            getchar();
-
-            send(client.sockfd, roomName, sizeof(roomName), 0);
-
-            char playerNumPreSet[100];
-
-            do
-            {
-                printf("playerNumPreSet (min: 2 - max: 3): ");
-                fgets(playerNumPreSet, sizeof(playerNumPreSet), stdin);
-                playerNumPreSet[strlen(playerNumPreSet) - 1] = '\0';// delete '\n'
-            }
-            while(strlen(playerNumPreSet) != 1
-                    || playerNumPreSet[0] > '3'
-                    || playerNumPreSet[0] < '2');
-
-            send(client.sockfd, playerNumPreSet, sizeof(playerNumPreSet), 0);
-
-            getMessage(MESSAGE, recvBuff);
-            int recvBuffInt = atoi(recvBuff);
-            printf("Room ID: %d\n", recvBuffInt);
-            holdScreen();
-
-            client.isHost = 1;
-            args.int1 = &recvBuffInt;
-
-            pthread_create(&gameRoomThreadID, NULL, &gameRoom, (void*)&args);
-            pthread_join(gameRoomThreadID, &val);
+            newRoom();
             break;
 
         case '5':
             printf("JOIN ROOM\n\n");
-            if(client.logedIn == 0)
+            if(client.logedIn != 1)
             {
                 printf("You have not logged in yet\n");
                 holdScreen();
                 break;
             }
 
-            strcpy(service, "6");
-            send(client.sockfd, service, sizeof(service), 0);
-            getMessage(MESSAGE, recvBuff);
-            if(strcmp(recvBuff, "NO_ROOM") == 0)
-            {
-                puts(recvBuff);
-                holdScreen();
-                break;
-            }
-
-            printf("Room num: %s\n\n", recvBuff);
-            printf("=============\n\n");
-            printf("Room list:\n\n");
-
-            while(1)
-            {
-                getMessage(MESSAGE, recvBuff);
-                if(strcmp(recvBuff, "PRINT_ROOM_END") == 0)
-                    break;
-
-                printf("Room ID: %s\n", recvBuff);
-                getMessage(MESSAGE, recvBuff);
-                printf("Room name: %s\n", recvBuff);
-                getMessage(MESSAGE, recvBuff);
-                printf("Num of player preset: %s\n", recvBuff);
-                getMessage(MESSAGE, recvBuff);
-                printf("Num of player: %s\n", recvBuff);
-                printf("\n");
-            }
-
-            char chosenRoom_char[5];
-            while(1)
-            {
-                printf("Enter room ID: ");
-                fgets(chosenRoom_char, sizeof(chosenRoom_char), stdin);
-                chosenRoom_char[strlen(chosenRoom_char) - 1] = '\0';
-
-                send(client.sockfd, chosenRoom_char, sizeof(chosenRoom_char), 0);
-
-                getMessage(MESSAGE, recvBuff);
-                if(strcmp(recvBuff, "ROOM_FULL") == 0)
-                {
-                    printf("Room full!\nPlease choose another room\n");
-                    continue;
-                }
-
-                if(strcmp(recvBuff, "ROOM_NOT_FOUND") == 0)
-                {
-                    printf("Room not found!\nPlease choose another room\n");
-                    continue;
-                }
-
-                if(strcmp(recvBuff, "ENTER_ROOM_SUCCESSFULY") == 0)
-                {
-                    break;
-                    continue;
-                }
-            }
-
-            clearScreen();
-
-            int chosenRoom = atoi(chosenRoom_char);
-            client.isHost = 0;
-            args.int1 = &chosenRoom;
-
-            pthread_create(&gameRoomThreadID, NULL, &gameRoom, (void*)&args);
-            pthread_join(gameRoomThreadID, &val);
-
+            joinRoom();
             break;
 
         case '6':
             printf("PLAYING HISTORY\n\n");
-            if(client.logedIn == 0)
+            if(client.logedIn != 1)
             {
                 printf("You have not logged in yet\n");
                 holdScreen();
@@ -259,18 +157,23 @@ int main(int argc, char *argv[])
             }
             break;
 
+        //TODO: playing history
+
         case '7':
             printf("SIGN OUT\n\n");
-            if(client.logedIn == 0)
+            if(client.logedIn != 1)
             {
                 printf("You have not logged in yet\n");
                 holdScreen();
                 break;
             }
+
             strcpy(service, "7");
-            send(client.sockfd, service, sizeof(service), 0);
+
+            waitMessage(MESSAGE, "SIGN_OUT_SUCCESSFULLY");
             printf("Signed out successfully\n");
-            client.logedIn = 0;
+
+            client.logedIn = -1;
             holdScreen();
             break;
 
@@ -281,7 +184,6 @@ int main(int argc, char *argv[])
     }
     while(programTerminate != 1);
 
-// close the descriptor
     close(client.sockfd);
 }
 
@@ -317,6 +219,7 @@ char getMenuChoice()
             choice[strlen(choice) - 1] = '\0';
         }
         while(strlen(choice) != 1 || (choice[0] > '6' || choice[0] < '1'));
+
         if(choice[0] >= '3')
             choice[0] = choice[0] + 1;
 
@@ -346,9 +249,7 @@ char getMenuChoice()
 
 void signUp ()
 {
-    char service[5];
-    strcpy(service, "1");
-    send(client.sockfd, service, sizeof(service), 0);
+    send_message(SERVICE, "1");
 
     userNameType userName;
     passwordType password;
@@ -356,13 +257,11 @@ void signUp ()
     printf("User name: ");
     scanf("%s", userName);
     getchar();
-    send(client.sockfd, userName, sizeof(userName), 0);
+    send_message(CLIENT_MESSAGE, userName);
 
-
-    char recvBuff[RECV_BUFF_SIZE];
-    while(messageReady[MESSAGE] == 0);
-    getMessage(MESSAGE, recvBuff);
-    if(strcmp(recvBuff, "X") == 0)
+    char message[RECV_MESS_SIZE];
+    getMessage(MESSAGE, message);
+    if(strcmp(message, "X") == 0)
     {
         printf("-----------------------------\n\n");
         printf("Register failed\n");
@@ -374,9 +273,9 @@ void signUp ()
     printf("Insert password: ");
     scanf("%s", password);
     getchar();
-    send(client.sockfd, password, sizeof(password), 0);
+    send_message(CLIENT_MESSAGE, password);
 
-
+    waitMessage(MESSAGE, "SIGNUP_SUCCESSFULLY");
     printf("-----------------------------\n\n");
     printf("Signed up successfully\n");
     printf("-----------------------------\n");
@@ -385,11 +284,9 @@ void signUp ()
 
 void login ()
 {
-    char recvBuff[RECV_BUFF_SIZE];
-    char service[5];
-    // service 3: login
-    strcpy(service, "3");
-    send(client.sockfd, service, sizeof(service), 0);
+    send_message(SERVICE, "3");
+
+    char message[RECV_MESS_SIZE];
 
     userNameType userName;
     passwordType password;
@@ -397,9 +294,10 @@ void login ()
     printf("User name: ");
     scanf("%s", userName);
     getchar();
-    send(client.sockfd, userName, sizeof(userName), 0);
-    getMessage(MESSAGE, recvBuff);
-    if(strcmp(recvBuff, "X") == 0)
+    send_message(CLIENT_MESSAGE, userName);
+
+    getMessage(MESSAGE, message);
+    if(strcmp(message, "X") == 0)
     {
         printf("-----------------------------\n\n");
         printf("Wrong account\n");
@@ -411,13 +309,12 @@ void login ()
     printf("Insert password: ");
     scanf("%s", password);
     getchar();
-    send(client.sockfd, password, sizeof(password), 0);
+    send_message(CLIENT_MESSAGE, password);
 
     int res;
 
-    getMessage(MESSAGE, recvBuff);
-    res = atoi(recvBuff);
-    //printf("resCode: %d\n", res);
+    getMessage(MESSAGE, message);
+    res = atoi(message);
 
     if(res == LOGIN_SUCCESS)
     {
@@ -445,118 +342,238 @@ void login ()
 
 void changePass ()
 {
-    char service[5];
-    strcpy(service, "4");
-    send(client.sockfd, service, sizeof(service), 0);
+    send_message(CLIENT_MESSAGE, "4");
 
     passwordType newPassword;
     printf("New password: ");
     scanf("%s", newPassword);
     getchar();
 
-    send(client.sockfd, newPassword, sizeof(newPassword), 0);
+    send_message(CLIENT_MESSAGE, newPassword);
+    holdScreen();
+}
+
+void newRoom()
+{
+    send_message(SERVICE, "5");
+
+    char message[RECV_MESS_SIZE];
+
+    char roomName[255];
+    printf("Room name: ");
+    scanf("%s", roomName);
+    getchar();
+
+    send_message(CLIENT_MESSAGE, roomName);
+
+    char playerNumPreSet[3];
+
+    do
+    {
+        printf("playerNumPreSet (min: 2 - max: 3): ");
+        fgets(playerNumPreSet, sizeof(playerNumPreSet), stdin);
+        playerNumPreSet[strlen(playerNumPreSet) - 1] = '\0';// delete '\n'
+    }
+    while(strlen(playerNumPreSet) != 1
+            || playerNumPreSet[0] > '3'
+            || playerNumPreSet[0] < '2');
+
+    send_message(CLIENT_MESSAGE, playerNumPreSet);
+
+    getMessage(MESSAGE, message);
+    int roomID = atoi(message);
+    printf("Room ID: %d\n", roomID);
+    holdScreen();
+
+    client.isHost = 1;
+    Args args;
+    args.int1 = &roomID;
+
+    void* val;
+    pthread_t tmp_threadID;
+    pthread_create(&tmp_threadID, NULL, &gameRoom, (void*)&args);
+    pthread_join(tmp_threadID, &val);
+
+    holdScreen();
+}
+
+void joinRoom()
+{
+    send_message(SERVICE, "6");
+
+    char message[RECV_MESS_SIZE];
+
+    getMessage(MESSAGE, message);
+    if(strcmp(message, "NO_ROOM") == 0)
+    {
+        puts(message);
+        holdScreen();
+        return;
+    }
+
+    printf("Room num: %s\n\n", message);
+    printf("=============\n\n");
+    printf("Room list:\n\n");
+
+    do
+    {
+        getMessage(MESSAGE, message);
+        printf("Room ID: %s\n", message);
+        getMessage(MESSAGE, message);
+        printf("Room name: %s\n", message);
+        getMessage(MESSAGE, message);
+        printf("Num of player preset: %s\n", message);
+        getMessage(MESSAGE, message);
+        printf("Num of player: %s\n", message);
+        printf("\n");
+    }
+    while(checkMessage_waitRecv(MESSAGE, "PRINT_ROOM_END") != 1);
+
+    char chosenRoom_char[5];
+    do
+    {
+        printf("Enter room ID: ");
+        fgets(chosenRoom_char, sizeof(chosenRoom_char), stdin);
+        chosenRoom_char[strlen(chosenRoom_char) - 1] = '\0';
+
+        send_message(CLIENT_MESSAGE, chosenRoom_char);
+
+        getMessage(MESSAGE, message);
+
+        if(strcmp(message, "ROOM_FULL") == 0)
+        {
+            printf("Room full!\nPlease choose another room\n");
+            continue;
+        }
+
+        if(strcmp(message, "ROOM_NOT_FOUND") == 0)
+        {
+            printf("Room not found!\nPlease choose another room\n");
+            continue;
+        }
+    }
+    while(strcmp(message, "ENTER_ROOM_SUCCESSFULY") != 0);
+
+    clearScreen();
+
+    Args args;
+    int chosenRoom = atoi(chosenRoom_char);
+    args.int1 = &chosenRoom;
+
+    void* val;
+    pthread_t tmp_threadID;
+    pthread_create(&tmp_threadID, NULL, &gameRoom, (void*)&args);
+    pthread_join(tmp_threadID, &val);
+
     holdScreen();
 }
 
 void* gameRoom(void* args)
 {
+    pthread_detach(pthread_self());
+
+    int oldstate;
+    pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, &oldstate);
+    int oldtype;
+    pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, &oldtype);
+
     Args* actual_args = args;
 
     int roomID;
-
     roomID = *(actual_args->int1);
 
-    char recvBuff[RECV_BUFF_SIZE];
+    char message[RECV_MESS_SIZE];
 
-    int initialState;
+    int initialState = client.isHost;
+    printRoomChatOpt();
     while(1)
     {
-        int becomeNewHost = 0;
-        if(client.isHost == 1)
-        {
-            initialState = 1;
-            printf("-----------------------------\n");
-            printf("Your are now the host of the room\nKEYWORD\n\n");
-            printf("+) Invite:  $INVITE<tab><userName>\n");
-            printf("+) Kick:    $KICK<tab><userName>\n");
-            printf("+) Ready:    $READY\n");
-            printf("+) Out room: $QUIT<tab><userName>\n"); // new host
-            printf("-----------------------------\n\n");
-        }
+        char chatMessage[100];
+        int ready = -1;
 
-        if(client.isHost == 0)
-        {
-            initialState = 0;
-            printf("-----------------------------\n");
-            printf("Your are in room\nKEYWORD\n\n");
-            printf("+) Invite:  $INVITE<tab><userName>\n");
-            printf("+) Ready:    $READY\n");
-            printf("+) Out room: $QUIT\n"); // new host
-            printf("-----------------------------\n\n");
-        }
-
-        char chatMessage[500];
-        int ready = 0;
         printf("Write something to chat...\n\n");
 
-        do
+        while(ready != 1)
         {
-            if(initialState == 0)
-                if(client.isHost == 1)
-                {
-                    becomeNewHost = 1;
-                    break;
-                }
-
+            if(initialState != 1 && client.isHost == 1)
+            {
+                initialState = 1;
+                printRoomChatOpt();
+            }
+            do{
             fgets(chatMessage, 500, stdin);
+            }while(chatMessage[0] == '\n');
             chatMessage[strlen(chatMessage) - 1] = '\0';
 
             if(strcmp(chatMessage, "$READY") == 0)
-                ready = 1;
-            if(messageReady[GAME_CONTROL_DATA] == 1 &&
-                    ((strcmp(recvMessage[GAME_CONTROL_DATA], "KICKED") == 0)
-                     || (strcmp(recvMessage[GAME_CONTROL_DATA], "OUT_ROOM") == 0)))
             {
-                getMessage(GAME_CONTROL_DATA, recvBuff);
-                pthread_cancel(pthread_self());
+            send_message(CLIENT_MESSAGE, chatMessage);
+            waitMessage(GAME_CONTROL_DATA, "READY_SUCCESSFULLY");
+                ready = 1;
+                continue;
+            }
+
+            if(checkMessage(GAME_CONTROL_DATA, "KICKED") == 1
+                    || checkMessage(GAME_CONTROL_DATA, "OUT_ROOM") == 1)
+            {
                 printf("Out room\n");
+                pthread_cancel(pthread_self());
+            } else {
+                printf("> you: %s\n", chatMessage);
+                send_message(CLIENT_MESSAGE, chatMessage);
             };
-
-            printf("> you: %s\n", chatMessage);
-            send(client.sockfd, chatMessage, sizeof(chatMessage), 0);
         }
-        while(ready == 0);
 
-        if(becomeNewHost == 1)
-            continue;
-
-        pthread_t gamePlayThreadId;
-        pthread_create(&(gamePlayThreadId), NULL, &gamePlay, (void*)args);
-        pthread_join(gamePlayThreadId, NULL);
-
-        //printf("Please wait for 5 second to make game play thread completely end...\n");
-        //delay(5);
+        pthread_t tmp_threadID;
+        pthread_create(&tmp_threadID, NULL, &gamePlay, (void*)args);
+        pthread_join(tmp_threadID, NULL);
 
         holdScreen();
     }
 }
 
+void printRoomChatOpt()
+{
+    if(client.isHost == 1)
+    {
+        printf("-----------------------------\n");
+        printf("Your are now the host of the room\nKEYWORD\n\n");
+        printf("+) Invite:  $INVITE<tab><userName>\n");
+        printf("+) Kick:    $KICK<tab><userName>\n");
+        printf("+) Ready:    $READY\n");
+        printf("+) Out room: $QUIT<tab><userName>\n"); // new host
+        printf("-----------------------------\n\n");
+    }
+
+    if(client.isHost != 1)
+    {
+        printf("-----------------------------\n");
+        printf("Your are in room\nKEYWORD\n\n");
+        printf("+) Invite:  $INVITE<tab><userName>\n");
+        printf("+) Ready:    $READY\n");
+        printf("+) Out room: $QUIT\n"); // new host
+        printf("-----------------------------\n\n");
+    }
+}
+
 void* gamePlay(void* args)
 {
-//printf("Game thread ID: %ld\n", pthread_self());
+    pthread_detach(pthread_self());
+
+    int oldstate;
+    pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, &oldstate);
+    int oldtype;
+    pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, &oldtype);
 
     client.gamePlayThreadId = pthread_self();
 
     Args* actual_args = args;
-
     int roomID;
-
     roomID = *(actual_args->int1);
 
-    char recvBuff[RECV_BUFF_SIZE];
+    char message[RECV_MESS_SIZE];
 
-    while(strcmp(recvMessage[1], "GAME_START") != 0);
-    getMessage(MESSAGE, recvBuff);
+    waitMessage(MESSAGE, "GAME_START");
 
     clearScreen();
     printf("\n\n---------------------------------------------\n");
@@ -565,147 +582,146 @@ void* gamePlay(void* args)
 
     int quesNum = 0;
     char question[100];
-    int quitGame = 0;
+    char ans[20];
+    int ansLen;
+
     do
     {
-        getMessage(GAME_CONTROL_DATA, recvBuff);
+        getMessage(GAME_CONTROL_DATA, question);
         quesNum++;
 
-        if(strcmp(recvBuff, "END_GAME") == 0)
-            break;
-
-        strcpy(question, recvBuff);
-
-        getMessage(GAME_CONTROL_DATA, recvBuff);
-        int ansLen = atoi(recvBuff);
-
-        while(strcmp(recvMessage[GAME_CONTROL_DATA], "QUES_SOLVED") != 0)
+        getMessage(GAME_CONTROL_DATA, message);
+        ansLen = atoi(message);
+        int i;
+        for(i = 0; i < ansLen; i++)
         {
-            do
-            {
-                printf("Question %d: %s\n\n", quesNum, question);
-                printf("Number of character of the answer: %d\n", ansLen);
-
-                //printf("###waiting turn...\n");
-                while(messageReady[GAME_CONTROL_DATA] != 1
-                        || (strcmp(recvMessage[GAME_CONTROL_DATA], "YOUR_TURN") != 0
-                            && strcmp(recvMessage[GAME_CONTROL_DATA], "GAME_BREAK") != 0
-                            && strcmp(recvMessage[GAME_CONTROL_DATA], "QUES_SOLVED") != 0
-                            && strcmp(recvMessage[GAME_CONTROL_DATA], "NEXT_ROUND") != 0));
-
-                if(strcmp(recvMessage[GAME_CONTROL_DATA], "QUES_SOLVED") == 0)
-                    break;
-
-                if(strcmp(recvMessage[GAME_CONTROL_DATA], "NEXT_ROUND") == 0)
-                    break;
-
-                if(messageReady[GAME_CONTROL_DATA] != 1
-                        && strcmp(recvMessage[GAME_CONTROL_DATA], "GAME_BREAK") == 0)
-                {
-                    getMessage(GAME_CONTROL_DATA, recvBuff);
-                    printf("game break...\n");
-                }
-
-                int timeOut;
-                timeOut = 0;
-
-                getMessage(GAME_CONTROL_DATA, recvBuff);
-                printf("It's your turn\n");
-
-                // TODO: show the wheel's result
-
-                getMessage(GAME_CONTROL_DATA, recvBuff);
-                int timeOutS = atoi(recvBuff);
-
-                printf("You have %d s to give your answer\n\n", timeOutS);
-
-                char choice_answer[100];
-                char choice[2];
-                char playerAnswer[50];
-                printf("OPTION:\n");
-                printf("1. Solve the question\n");
-                printf("2. Guess character\n");
-                int tabCount = 0;
-                do
-                {
-
-                    printf("Enter your choice (choice<tab>answer): \n");
-
-                    timeOut = fgets_timeout (choice_answer, sizeof(choice_answer), timeOutS);
-
-                    if(messageReady[GAME_CONTROL_DATA] != 1
-                            && strcmp(recvMessage[GAME_CONTROL_DATA], "GAME_BREAK") == 0)
-                    {
-                        getMessage(GAME_CONTROL_DATA, recvBuff);
-                        printf("game break...\n");
-                    }
-
-                    if(timeOut == -1)
-                        break;
-                    choice_answer[strlen(choice_answer) - 1] = '\0';
-                    for(int i = 0; i < strlen(choice_answer); i++)
-                        if(choice_answer[i] == '\t') tabCount = 1;
-
-                    if(tabCount == 0) continue;
-
-                    char* strTmp;
-                    strTmp = strtok(choice_answer, "\t");
-                    strcpy(choice, strTmp);
-                    strTmp = strtok(NULL, "\t");
-                    strcpy(playerAnswer, strTmp);
-                }
-                while(tabCount == 0
-                        || strlen(choice) != 1
-                        || (choice[0] != '1' && choice[0] != '2')
-                        || (choice[0] == '2' && strlen(playerAnswer) != 1 ));
-
-                if(timeOut == -1)
-                {
-                    printf("Time out\n");
-                }
-                else
-                {
-
-                    char choiceInTurn[200];
-                    strcpy(choiceInTurn, choice);
-                    strcat(choiceInTurn, "-");
-                    strcat(choiceInTurn, playerAnswer);
-
-                    send(client.sockfd, choiceInTurn, sizeof(choiceInTurn), 0);
-                }
-                //clearScreen();
-//printf("###end turn\n");
-                while(messageReady[GAME_CONTROL_DATA] == 0 || (strcmp(recvMessage[GAME_CONTROL_DATA], "NEXT_ROUND") != 0
-                        && strcmp(recvMessage[GAME_CONTROL_DATA], "QUES_SOLVED") != 0));
-
-                //printf("###next round\n");
-            }
-            while(messageReady[GAME_CONTROL_DATA] == 0 || (strcmp(recvMessage[GAME_CONTROL_DATA], "NEXT_ROUND") != 0
-                    && strcmp(recvMessage[GAME_CONTROL_DATA], "QUES_SOLVED") != 0));
-
-
-            if(strcmp(recvMessage[GAME_CONTROL_DATA], "NEXT_ROUND") == 0)
-            {
-                printf("Next round!\n\n");
-                getMessage(GAME_CONTROL_DATA, recvBuff);
-                delay(3);
-                clearScreen();
-            }
+            ans[i] = '_';
         }
-        if(strcmp(recvMessage[GAME_CONTROL_DATA], "QUES_SOLVED") == 0)
-        {
-            printf("Question is solved!\n\n");
-            getMessage(GAME_CONTROL_DATA, recvBuff);// Read QUES_SOLVED
-            printf("---------------------------------------------------\n");
-            delay(3);
-            clearScreen();
-        }
+        ans[i] = '\0';
 
+        printf("Question %d: %s\n\n", quesNum, question);
+        printf("Number of character of the answer: %d\n", ansLen);
+        printf("%s\n\n", ans);
+
+        soldQuestion(quesNum, question, ans, ansLen);
     }
-    while(strcmp(recvMessage[GAME_CONTROL_DATA], "END_GAME") != 0);
+    while(checkMessage_waitRecv(GAME_CONTROL_DATA, "END_GAME") != 1);
 
     printf("\n\n---------------------------------------------\n");
     printf("End game!\n");
     printf("---------------------------------------------\n\n");
     holdScreen();
+}
+
+void soldQuestion(int quesNum, char* question, char* ans, int ansLen)
+{
+    char message[RECV_MESS_SIZE];
+
+    int quesSolved = -1;
+    do
+    {
+        if(checkMessage_waitRecv(GAME_CONTROL_DATA, "GAME_BREAK") ==1 )
+        {
+            printf("game break...\n");
+        }
+
+        if(checkMessage(GAME_CONTROL_DATA, "QUES_SOLVED") == 1 )
+        {
+            quesSolved = 1;
+            continue;
+        }
+
+        if(checkMessage(GAME_CONTROL_DATA, "NEXT_ROUND") == 1 )
+        {
+            // get current answer state
+            getMessage(GAME_CONTROL_DATA, message);
+            strcpy(ans, message);
+            printf("Next round!\n\n");
+            delay(3);
+            clearScreen();
+
+            printf("Question %d: %s\n\n", quesNum, question);
+            printf("Number of character of the answer: %d\n", ansLen);
+            printf("%s\n\n", ans);
+            continue;
+        }
+
+        waitMessage(GAME_CONTROL_DATA, "YOUR_TURN");
+        printf("It's your turn\n");
+
+        int timeOut;
+        timeOut = 0;
+
+        // TODO: show the wheel's result
+
+        getMessage(GAME_CONTROL_DATA, message);
+        int timeOutS = atoi(message);
+
+        printf("You have %d s to give your answer\n\n", timeOutS);
+
+        char choice_answer[100];
+        int res = getAnswer(choice_answer, timeOutS);
+        if(res != 1)
+        {
+            printf("Time out\n");
+        }
+        else if(res == 1)
+        {
+            send_message(CLIENT_MESSAGE, choice_answer);
+        }
+    }
+    while(quesSolved != 1);
+
+    printf("Question is solved!\n\n");
+    printf("---------------------------------------------------\n");
+    delay(3);
+    clearScreen();
+}
+
+int getAnswer(char* choice_answer, int timeOutS)
+{
+    char choice[2];
+    char playerAnswer[20];
+    char fromKeyBoard[30];
+
+    printf("OPTION:\n");
+    printf("1. Solve the question\n");
+    printf("2. Guess character\n");
+
+    int tabCount = 0;
+    int timeOut;
+    do
+    {
+        printf("Enter your choice (choice<tab>answer): \n");
+        timeOut = fgets_timeout (fromKeyBoard, sizeof(fromKeyBoard), timeOutS);
+
+        if(timeOut == -1)
+        {
+            break;
+        }
+
+        fromKeyBoard[strlen(fromKeyBoard) - 1] = '\0';
+        for(int i = 0; i < strlen(fromKeyBoard); i++)
+            if(fromKeyBoard[i] == '\t')
+            {
+                tabCount = 1;
+            }
+
+        if(tabCount == 0) continue;
+
+        char* savePtr;
+        char* strTmp;
+        strTmp = strtok_r(fromKeyBoard, "\t", &savePtr);
+        strcpy(choice, strTmp);
+        strTmp = strtok_r(NULL, "\t", &savePtr);
+        strcpy(playerAnswer, strTmp);
+    }
+    while(tabCount == 0
+            || strlen(choice) != 1
+            || (choice[0] != '1' && choice[0] != '2')
+            || (choice[0] == '2' && strlen(playerAnswer) != 1 ));
+
+    strcpy(choice_answer, choice);
+    strcat(choice_answer, "-");
+    strcat(choice_answer, playerAnswer);
 }

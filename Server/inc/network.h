@@ -4,17 +4,13 @@
 #define RECV_BUFF_SIZE 4096
 #define SEND_BUFF_SIZE 100
 
-typedef enum
-{
-    NOTIFICATION,
-    MESSAGE,
-    CHAT_MESSAGE,
-    GAME_CONTROL_MESSAGE,
-    GAME_CONTROL_DATA
-} messageType;
+#define CONNFD_CANNOT_CONNECT -1
+#define EXCESS_TIME_LIMIT 601
+#define SEND_SUCCESS 602
 
-int send_message(int connfd, messageType type, char* message);
+extern char messageEndMarker[5];
+
+int getConnfdIndex(int connfd);
 void clientConnfdUnconnect(int connfdIndex);
-void delay(int secs);
 
 #endif

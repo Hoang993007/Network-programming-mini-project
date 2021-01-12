@@ -32,17 +32,16 @@
 			<Add option="-Wall" />
 		</Compiler>
 		<Unit filename="inc/accountSystem.h" />
-		<Unit filename="inc/convertNumAndStr.h" />
 		<Unit filename="inc/errorCode.h" />
 		<Unit filename="inc/network.h" />
+		<Unit filename="inc/otherFunction.h" />
 		<Unit filename="inc/question.h" />
+		<Unit filename="inc/recvMessage.h" />
 		<Unit filename="inc/room.h" />
+		<Unit filename="inc/sendMessage.h" />
 		<Unit filename="inc/server.h" />
 		<Unit filename="inc/services.h" />
 		<Unit filename="src/accountSystem.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="src/convertNumAndStr.c">
 			<Option compilerVar="CC" />
 		</Unit>
 		<Unit filename="src/errorCode.c">
@@ -51,10 +50,19 @@
 		<Unit filename="src/network.c">
 			<Option compilerVar="CC" />
 		</Unit>
+		<Unit filename="src/otherFunction.c">
+			<Option compilerVar="CC" />
+		</Unit>
 		<Unit filename="src/question.c">
 			<Option compilerVar="CC" />
 		</Unit>
+		<Unit filename="src/recvMessage.c">
+			<Option compilerVar="CC" />
+		</Unit>
 		<Unit filename="src/room.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="src/sendMessage.c">
 			<Option compilerVar="CC" />
 		</Unit>
 		<Unit filename="src/server.c">
