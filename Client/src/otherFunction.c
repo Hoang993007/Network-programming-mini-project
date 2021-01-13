@@ -131,12 +131,21 @@ int bigNumberChoose(int startNum, int endNum) {
     pthread_create(&tmp_threadID, NULL, &numberRun, (void*)&numRunArgs);
 
     char buff[5];
-    fgets(buff, 5, stdin);
-    pthread_cancel(numRunArgs.thread1);
+        int len;
+        int timeOut = fgets_timeout (buff, sizeof(buff), 5, &len);
+        pthread_cancel(numRunArgs.thread1);
+
 
     clearScreen();
+            if(timeOut == -1)
+        {
+            startNum = 0;
+        }else
+        {
     print_number(startNum);
+
     holdScreen();
+    }
     return startNum;
 }
 void* numberRun(void* args) {
@@ -155,7 +164,8 @@ void* numberRun(void* args) {
     srand(time(0));
 
     clearScreen();
-    while(1)
+    unsigned int retTime = time(0) + 5;
+    while(time(0) < retTime)
     {
            int i = rand() % (end - start + 1) + start;
             clearScreen();
