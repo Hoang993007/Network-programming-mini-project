@@ -723,21 +723,24 @@ int getAnswer(char* choice_answer, int timeOutS)
 
     do
     {
+    unsigned int timeLeft = retTime - time(0);
         printf("Enter your choice (choice<tab>answer): \n");
-        timeOut = fgets_timeout (fromKeyBoard, sizeof(fromKeyBoard), retTime - time(0));
+        int len;
+        timeOut = fgets_timeout (fromKeyBoard, sizeof(fromKeyBoard), timeLeft, &len);
 
         if(timeOut == -1)
         {
             return timeOut;
         }
 
-        fromKeyBoard[strlen(fromKeyBoard) - 1] = '\0';
+        fromKeyBoard[len - 1] = '\0';
         for(int i = 0; i < strlen(fromKeyBoard); i++)
             if(fromKeyBoard[i] == '\t')
             {
                 tabCount = 1;
             }
 
+            printf("### %s||\n", fromKeyBoard);
         if(tabCount == 0) continue;
 
         char* savePtr;

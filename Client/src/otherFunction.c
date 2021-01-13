@@ -43,7 +43,7 @@ void clearScreen ()
 #endif
 }
 
-int fgets_timeout (char* buff, int sizeOfBuff, int seconds)
+int fgets_timeout (char* buff, int sizeOfBuff, int seconds, int* len)
 {
     fd_set          input_set;
     struct timeval  timeout;
@@ -79,6 +79,8 @@ int fgets_timeout (char* buff, int sizeOfBuff, int seconds)
     {
         // Just hit enter
     }
+    *len = read_bytes;
+    return 0;
 }
 
 void tostring(char str[], int num)

@@ -16,7 +16,7 @@ typedef struct
 
 void holdScreen ();
 void clearScreen ();
-int fgets_timeout (char* buff, int sizeOfBuff, int seconds);
+int fgets_timeout (char* buff, int sizeOfBuff, int seconds, int* len);
 void tostring(char str[], int num);
 int checkCharacter(char* c);
 void delay(int secs);
