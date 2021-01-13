@@ -165,6 +165,14 @@ void* numberRun(void* args) {
 
 void print_number(int number) {
 	switch (number) {
+	case 0:
+		printf("oooooooo\n");
+		printf("oo    oo\n");
+		printf("oo    oo\n");
+		printf("oo    oo\n");
+		printf("oooooooo\n");
+		printf("\n");
+		break;
 	case 1:
 		printf("    oo\n");
 		printf("  oooo\n");
