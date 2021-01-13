@@ -170,6 +170,11 @@ int waitMessage(recvFromServer_MessageType type, char* message)
     printf("### wait message: %s\n", message);
 
     while(messageReady[type] != 1 || strcmp(recvMessage[type], message) != 0);
+//    if(testMode == 1)
+//    {
+//        printf("### messageReady[type]: %d\n", messageReady[type]);
+//        printf("### recvMessage[type]: %s\n", recvMessage[type]);
+//    }
 
     getMessage(type, NULL);
 }

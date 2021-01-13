@@ -83,6 +83,11 @@ int fgets_timeout (char* buff, int sizeOfBuff, int seconds)
 
 void tostring(char str[], int num)
 {
+if(num == 0) {
+str[0] = '0';
+str[1] = '\0';
+return;
+}
     int i, rem, len = 0, n;
 
     n = num;

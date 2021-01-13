@@ -46,7 +46,7 @@ typedef struct _room
     //The first player is roomhost
     accountNode* player[MAX_ROOM_PLAYER];
     int playerConnfd[MAX_ROOM_PLAYER];
-        int playerConnfdRSBusy[MAX_ROOM_PLAYER];
+    int playerConnfdRSBusy[MAX_ROOM_PLAYER];
     int playerReady[MAX_ROOM_PLAYER];
     int playerPoint[MAX_ROOM_PLAYER];
 

@@ -260,8 +260,8 @@ void signUp ()
     send_message(CLIENT_MESSAGE, userName);
 
     char message[RECV_MESS_SIZE];
-    getMessage(MESSAGE, message);
-    if(strcmp(message, "X") == 0)
+
+    if(checkMessage_waitRecv(MESSAGE, "X") == 1)
     {
         printf("-----------------------------\n\n");
         printf("Register failed\n");
@@ -269,6 +269,7 @@ void signUp ()
         holdScreen();
         return;
     }
+    waitMessage(MESSAGE, "O");
 
     printf("Insert password: ");
     scanf("%s", password);
@@ -664,6 +665,7 @@ void soldQuestion(int quesNum, char* question, char* ans, int ansLen)
             char numStr[5];
             tostring(numStr, res);
             send_message(CLIENT_MESSAGE, numStr);
+
             char messageNum[RECV_MESS_SIZE];
             getMessage(GAME_CONTROL_DATA, messageNum);
             if(strcmp(messageNum, "LOST_TURN") == 0)
@@ -671,8 +673,6 @@ void soldQuestion(int quesNum, char* question, char* ans, int ansLen)
                 lostTurn = 1;
                 printf("You've lost your turn\n");
             }
-            else
-            puts(messageNum);
 
             printf("Question %d: %s\n\n", quesNum, question);
             printf("Number of character of the answer: %d\n", ansLen);
